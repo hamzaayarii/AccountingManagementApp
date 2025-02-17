@@ -76,12 +76,11 @@ jobs:
         working-directory: ./frontend
         run: npm run build
 
- # Send Discord notification on failure (Optional)
-notify_failure:
-  runs-on: ubuntu-latest
-  needs: build  # This means it will run after the 'build' job
-  if: failure()  # Only runs if the build fails
-  steps:
-    - name: Send Discord Notification
-      run: |
-        curl -X POST -H "Content-Type: application/json" -d '{"content": "@everyone ❌ CI/CD Pipeline Failed for '${{ github.repository }}'.\n\nCommit: '${{ github.sha }}'\nTriggered by: '${{ github.actor }}'\nLogs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' ${{ secrets.DISCORD_WEBHOOK_URL }}
+  notify_failure:
+    runs-on: ubuntu-latest
+    needs: build  # This means it will run after the 'build' job
+    if: failure()  # Only runs if the build fails
+    steps:
+      - name: Send Discord Notification
+        run: |
+          curl -X POST -H "Content-Type: application/json" -d '{"content": "@everyone ❌ CI/CD Pipeline Failed for '${{ github.repository }}'.\n\nCommit: '${{ github.sha }}'\nTriggered by: '${{ github.actor }}'\nLogs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' ${{ secrets.DISCORD_WEBHOOK_URL }}
