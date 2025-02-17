@@ -4,7 +4,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'develop', url: 'https://github.com/hamzaayarii/AccountingManagementApp.git'
+                git branch: 'dev', url: 'https://github.com/hamzaayarii/AccountingManagementApp.git'
             }
         }
 
