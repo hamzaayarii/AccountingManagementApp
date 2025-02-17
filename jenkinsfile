@@ -1,11 +1,29 @@
 pipeline {
     agent any
 
+    environment {
+        // Set Node version if needed (optional)
+        NODE_VERSION = '22.x' // Adjust as per your project's required Node version
+    }
+
     stages {
+        stage('Checkout SCM') {
+            steps {
+                // Checkout the latest code from the repository
+                checkout scm
+            }
+        }
+
         stage('Install dependencies') {
             steps {
                 script {
-                    sh('npm install')
+                    // Optional: Use nvm to set Node.js version if required
+                    sh '''#!/bin/bash
+                        curl -sL https://deb.nodesource.com/setup_${NODE_VERSION} | sudo -E bash -
+                        sudo apt-get install -y nodejs
+                    '''
+                    // Run npm install to install dependencies
+                    sh 'npm install'
                 }
             }
         }
@@ -13,7 +31,8 @@ pipeline {
         stage('Unit Test') {
             steps {
                 script {
-                    sh('npm test')
+                    // Run unit tests using npm
+                    sh 'npm test'
                 }
             }
         }
@@ -21,9 +40,36 @@ pipeline {
         stage('Build application') {
             steps {
                 script {
-                    sh('npm run build-dev')
+                    // Build the application (adjust as per your project's build command)
+                    sh 'npm run build-dev'
                 }
             }
+        }
+
+        stage('Archive Artifacts') {
+            steps {
+                // Archive build artifacts, like compiled files, test reports, etc.
+                archiveArtifacts artifacts: '**/target/**/*.jar', allowEmptyArchive: true
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                // Add your deploy logic here (e.g., using SSH, Docker, etc.)
+                echo 'Deploying application'
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Build succeeded!'
+        }
+        failure {
+            echo 'Build failed!'
+        }
+        always {
+            cleanWs()  // Clean workspace after the build
         }
     }
 }
