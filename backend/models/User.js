@@ -31,6 +31,7 @@ const userSchema = new mongoose.Schema({
         required: [true, "Le gouvernorat est obligatoire"],
         trim: true
     },
+    //test
     avatar: {
         type: String,
         match: [/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/, "L'URL de l'avatar n'est pas valide"]
