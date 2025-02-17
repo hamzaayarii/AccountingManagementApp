@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const dbConfig = require('./config/db.json');
+var usersRouter = require('./routes/userRoutes');
 
 const app = express();
 
@@ -34,6 +35,7 @@ mongoose.connection.on('disconnected', () => {
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use('/users', usersRouter);
 
 // Routes
 

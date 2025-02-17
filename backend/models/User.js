@@ -1,51 +1,53 @@
 const mongoose = require('mongoose');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
+
 const userSchema = new mongoose.Schema({
     fullName: {
         type: String,
-        required: [true, "Le nom complet est obligatoire"],
-        trim: true,
-        minlength: [3, "Le nom complet doit contenir au moins 3 caractères"],
-        maxlength: [50, "Le nom complet ne peut pas dépasser 50 caractères"]
+        required: true
     },
     email: {
         type: String,
-        required: [true, "L'email est obligatoire"],
+        required: true,
         unique: true,
-        trim: true,
-        lowercase: true,
-        match: [/^\S+@\S+\.\S+$/, "Veuillez entrer une adresse e-mail valide"]
+        match: [/^\S+@\S+.\S+$/, 'Please enter a valid email']
     },
     password: {
         type: String,
-        required: [true, "Le mot de passe est obligatoire"],
-        minlength: [6, "Le mot de passe doit contenir au moins 6 caractères"]
+        required: true,
+        minlength: 6 // Minimum length for password
     },
     phoneNumber: {
         type: String,
-        required: [true, "Le numéro de téléphone est obligatoire"],
-        match: [/^\d{8}$/, "Le numéro de téléphone doit contenir 8 chiffres"]
+        validate: {
+            validator: function(v) {
+                return /\d{10}/.test(v); // Example regex for a 10-digit number
+            }
+            ,
+            message: props => '${props.value} is not a valid phone number!'
+        }
     },
     governorate: {
-        type: String,
-        required: [true, "Le gouvernorat est obligatoire"],
-        trim: true
+        type: String
     },
-    //test
     avatar: {
         type: String,
-        match: [/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/, "L'URL de l'avatar n'est pas valide"]
+        validate: {
+            validator: function(v) {
+                return /^https?:\/\/.+/.test(v); // Basic URL validation
+            },
+            message: props => '${props.value} is not a valid URL!'
+        }
     },
     gender: {
         type: String,
         enum: ['male', 'female', 'other'],
-        required: [true, "Le genre est obligatoire"]
+        default: 'other'
     },
     role: {
         type: String,
         enum: ['admin', 'user'],
-        default: 'user',
-        required: [true, "Le rôle est obligatoire"]
+        default: 'user'
     },
     emailVerified: {
         type: Boolean,
@@ -61,29 +63,18 @@ const userSchema = new mongoose.Schema({
     }
 });
 
-
-// 🔐 **Password Hashing Middleware**
-userSchema.pre('save', async function (next) {
-    if (!this.isModified('password')) return next();
-
-    try {
-        const saltRounds = 10;
-        this.password = await bcrypt.hash(this.password, saltRounds);
-        next();
-    } catch (error) {
-        next(error);
+userSchema.pre('save', async function(next) {
+    if (!this.isModified('password')) {
+        return next();
     }
-});
-
-// 🔍 **Password Comparison Method**
-userSchema.methods.comparePassword = async function (candidatePassword) {
-    return await bcrypt.compare(candidatePassword, this.password);
-};
-
-// Auto-update `updatedAt` before saving
-userSchema.pre('save', function (next) {
-    this.updatedAt = Date.now();
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    this.updatedAt = Date.now(); // Update updatedAt timestamp
     next();
 });
+
+userSchema.methods.comparePassword = async function(candidatePassword) {
+    return await bcrypt.compare(candidatePassword, this.password);
+};
 
 module.exports = mongoose.model('User', userSchema);

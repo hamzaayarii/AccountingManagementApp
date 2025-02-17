@@ -1,7 +1,10 @@
-const express = require('express');
-const router = express.Router();
-const userController = require('../controllers/userController');
+var express = require('express')
+var router = express.Router()
+const { list, create ,updateUser,deleteUser} = require('../controllers/userController')
 
-// Create a new user
+router.get('/list', list)
+router.post('/create', create)
+router.put('/update/:id',updateUser)
+router.delete('/delete/:id',deleteUser)
 
-module.exports = router;
+module.exports = router
