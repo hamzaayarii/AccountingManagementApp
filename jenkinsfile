@@ -45,27 +45,26 @@
         }
 
 
-        // Building Docker images
-    stage('Building images (node and mongo)') {
-    steps {
-        script {
-            sh 'sudo docker-compose build'
-        }
-    }
-}
-          //  Uploading Docker images into Nexus Registry
- stage('Deploy to Nexus') {
-    steps {
-        script {
-            // Using withDockerRegistry for Docker login and pushing to Nexus registry
-            withDockerRegistry([credentialsId: registryCredentials, url: "http://${registry}"]) {
-                // Pushing the Docker image to Nexus
-                sh "docker push ${registry}/nodemongoapp:6.0"
+      // Building Docker images
+        stage('Building images (node and mongo)') {
+            steps {
+                script {
+                    sh 'sudo docker-compose build'
+                }
             }
         }
-    }
-}
 
-
+        // Uploading Docker images into Nexus Registry
+        stage('Deploy to Nexus') {
+            steps {
+                script {
+                    // Using withDockerRegistry for Docker login and pushing to Nexus registry
+                    withDockerRegistry([credentialsId: registryCredentials, url: "http://${registry}"]) {
+                        // Pushing the Docker image to Nexus
+                        sh "docker push ${registry}/nodemongoapp:6.0"
+                    }
+                }
+            }
+        }
     }
 }
