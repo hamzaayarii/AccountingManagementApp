@@ -8,16 +8,28 @@ pipeline {
             }
         }
 
-        stage('List Files (Debug)') {
+        stage('Debug: List Files') {
             steps {
-                sh 'ls -la'  // Vérifier si package.json et backend existent
+                sh 'ls -la'  // Check repo structure
+            }
+        }
+
+        stage('Verify Node.js & npm') {
+            steps {
+                sh 'node -v && npm -v'  // Ensure Node.js is installed
             }
         }
 
         stage('Install Dependencies') {
             steps {
-                dir('backend') {
-                    sh 'npm install'
+                script {
+                    if (fileExists('backend/package.json')) {
+                        dir('backend') {
+                            sh 'npm install'
+                        }
+                    } else {
+                        error "backend/package.json not found!"
+                    }
                 }
             }
         }
