@@ -6,21 +6,6 @@ pipeline {
     }
 
     stages {
-        stage('Checkout Code') {
-            steps {
-                script {
-                    checkout([
-                        $class: 'GitSCM',
-                        branches: [[name: 'dev']],  // Ensure dev branch is checked out
-                        userRemoteConfigs: [[
-                            url: 'https://github.com/hamzaayarii/AccountingManagementApp.git',
-                            credentialsId: GIT_CREDENTIALS_ID
-                        ]]
-                    ])
-                }
-            }
-        }
-
         stage('Install Dependencies') {
             steps {
                 // Navigate to the backend folder before installing dependencies
