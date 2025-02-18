@@ -11,7 +11,7 @@ pipeline {
                 script {
                     checkout([
                         $class: 'GitSCM',
-                        branches: [[name: '*/dev']],
+                        branches: [[name: '**']],  // Fetch all branches
                         userRemoteConfigs: [[
                             url: 'https://github.com/hamzaayarii/AccountingManagementApp.git',
                             credentialsId: GIT_CREDENTIALS_ID
