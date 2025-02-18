@@ -1,45 +1,107 @@
-pipeline {
-    agent any
+pipeline{
+  agent any
 
-    stages {
-        stage('Checkout') {
-            steps {
-                git branch: 'dev', url: 'https://github.com/hamzaayarii/AccountingManagementApp.git'
-            }
+  environment {
+        registryCredentials = "nexus"
+        registry = "192.168.33.10:8080"
+    }
+   
+  stages {
+
+  stage('Install dependencies') {
+      steps{
+        
+        script {
+         sh('npm install')
         }
+      }
+    }
 
-        stage('Debug: List Files') {
-            steps {
-                sh 'ls -la'  // Check repo structure
-            }
+stage('Unit Test') {
+      steps{
+        
+        script {
+         sh('npm test')
         }
+      }
+    }
 
-        stage('Verify Node.js & npm') {
-            steps {
-                sh 'node -v && npm -v'  // Ensure Node.js is installed
-            }
-        }
-
-        stage('Install Dependencies') {
-            steps {
-                script {
-                    if (fileExists('backend/package.json')) {
-                        dir('backend') {
-                            sh 'npm install'
+    stage('SonarQube Analysis') {
+      steps{
+      script {  
+                    def scannerHome = tool 'scanner'
+                    withSonarQubeEnv {
+                    sh "${scannerHome}/bin/sonar-scanner"
                         }
-                    } else {
-                        error "backend/package.json not found!"
-                    }
-                }
+                } 
+              }  
             }
-        }
 
-        stage('Run Tests') {
-            steps {
-                dir('backend') {
-                    sh 'npm test'
-                }
-            }
+stage('Build application') {
+      steps{
+        
+        script {
+         sh('npm run build-dev')
         }
-    }  
+      }
+    }
+
+
+
+        // Building Docker images
+    stage('Building images (node and mongo)') {
+      steps{
+        
+        script {
+         sh('docker-compose build')
+        }
+      }
+    }
+
+
+        //  Uploading Docker images into Nexus Registry
+    stage('Deploy  to Nexus') {
+     steps{  
+         script {
+
+             docker.withRegistry("http://"+registry, registryCredentials ) {
+            sh('docker push $registry/nodemongoapp:6.0 ')
+          }
+        }
+      }
+    }
+
+     stage('Run application ') {
+     steps{  
+         script {
+           docker.withRegistry("http://"+registry, registryCredentials ) {
+
+            sh('docker pull $registry/nodemongoapp:6.0 ')
+
+            sh('docker-compose up -d ')
+          }
+        }
+      }
+    }
+
+     stage("Run Prometheus"){
+      steps{
+ 
+        script{
+
+        sh('docker start prometheus')
+
+        }
+      }
+    }
+     stage("Run Grafana"){ 
+      steps{
+
+        script{
+        sh('docker start grafana')
+        }
+      }
+    }
+  } 
+
 }
