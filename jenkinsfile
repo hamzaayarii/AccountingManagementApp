@@ -1,17 +1,41 @@
 pipeline {
     agent any
 
+    environment {
+        GIT_CREDENTIALS_ID = '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'
+    }
+
     stages {
-        
-        stage('Unit Test') {
+        stage('Checkout Code') {
             steps {
-                echo 'Running unit tests'
+                script {
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: '*/dev']],
+                        userRemoteConfigs: [[
+                            url: 'https://github.com/hamzaayarii/AccountingManagementApp.git',
+                            credentialsId: GIT_CREDENTIALS_ID
+                        ]]
+                    ])
+                }
             }
         }
 
-        stage('Build application') {
+        stage('Install Dependencies') {
             steps {
-               echo 'Building application'
+                sh 'npm install'
+            }
+        }
+
+        stage('Run Unit Tests') {
+            steps {
+                sh 'npm test'
+            }
+        }
+
+        stage('Build Application') {
+            steps {
+                sh 'npm run build'
             }
         }
     }
