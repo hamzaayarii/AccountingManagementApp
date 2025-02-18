@@ -1,10 +1,5 @@
 pipeline {
     agent any
-
-    environment {
-        GIT_CREDENTIALS_ID = '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'
-    }
-
     stages {
         stage('Install Dependencies') {
             steps {
