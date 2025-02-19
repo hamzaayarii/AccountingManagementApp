@@ -62,11 +62,11 @@
           //  Uploading Docker images into Nexus Registry
   stage('Deploy to Nexus') {
     steps {
-        script {
+      script {
             withCredentials([usernamePassword(credentialsId: 'nexus', passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
                 sh """
                     echo \${NEXUS_PASSWORD} | docker login http://192.168.33.10:8083 -u \${NEXUS_USERNAME} --password-stdin
-                    docker push 192.168.33.10:8083/nodemongoapp:6.0
+                    docker push 192.168.33.10:8083/repository/docker-repo/nodemongoapp:6.0
                 """
             }
         }
