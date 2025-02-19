@@ -16,7 +16,7 @@ services:
   app:
     build:
       context: ./backend
-    image: 192.168.33.10:8083/nodemongoapp:6.0
+    image: 192.168.33.10:8083/repository/docker-repo/nodemongoapp:6.0
     restart: always
     container_name: back
     ports:
