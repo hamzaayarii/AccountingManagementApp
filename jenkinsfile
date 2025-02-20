@@ -1,0 +1,76 @@
+    pipeline {
+    agent any
+
+        environment { 
+        NEXUS_VERSION = "nexus3"
+        NEXUS_PROTOCOL = "http"
+        NEXUS_URL = "192.168.33.10:8083"
+        NEXUS_REPOSITORY = "docker-repo"
+        NEXUS_CREDENTIAL_ID = "nexus"
+        DOCKER_IMAGE = "nodemongoapp"
+        DOCKER_TAG = "6.0"
+        } 
+
+    stages {
+        stage('Install Dependencies') {
+            steps {
+                // Navigate to the backend folder before installing dependencies
+                dir('backend') {
+                    sh 'npm install'
+                }
+            }
+        }
+
+        stage('Run Unit Tests') {
+            steps {
+                // Navigate to the backend folder before running tests
+                dir('backend') {
+                    sh 'npm test'
+                }
+            }
+        }
+        stage('SonarQube Analysis') {
+                  steps{
+                      script {  
+                    def scannerHome = tool 'scanner'
+                    withSonarQubeEnv {
+                    sh "${scannerHome}/bin/sonar-scanner"
+                        }
+                } 
+              }  
+            }
+
+        stage('Build Application') {
+            steps {
+                // Navigate to the backend folder before building the application
+                dir('backend') {
+                    sh 'npm run build'
+                }
+            }
+        }
+
+
+      // Building Docker images
+        stage('Building images (node and mongo)') {
+            steps {
+                script {
+                    sh 'sudo docker-compose build'
+                }
+            }
+        }
+
+          //  Uploading Docker images into Nexus Registry
+  stage('Deploy to Nexus') {
+    steps {
+      script {
+            withCredentials([usernamePassword(credentialsId: 'nexus', passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
+                sh """
+                    echo \${NEXUS_PASSWORD} | docker login http://192.168.33.10:8083 -u \${NEXUS_USERNAME} --password-stdin
+                    docker push 192.168.33.10:8083/repository/docker-repo/nodemongoapp:6.0
+                """
+            }
+        }
+      }
+    }
+    }
+}
