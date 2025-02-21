@@ -1,8 +1,7 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
+import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema({
-    fullName: {
+    name: {
         type: String,
         required: true
     },
@@ -20,7 +19,7 @@ const userSchema = new mongoose.Schema({
     phoneNumber: {
         type: String,
         validate: {
-            validator: function(v) {
+            validator: function (v) {
                 return /\d{10}/.test(v); // Example regex for a 10-digit number
             }
             ,
@@ -33,7 +32,7 @@ const userSchema = new mongoose.Schema({
     avatar: {
         type: String,
         validate: {
-            validator: function(v) {
+            validator: function (v) {
                 return /^https?:\/\/.+/.test(v); // Basic URL validation
             },
             message: props => '${props.value} is not a valid URL!'
@@ -60,21 +59,21 @@ const userSchema = new mongoose.Schema({
     updatedAt: {
         type: Date,
         default: Date.now
-    }
-});
+    },
+    lastLogin: {
+        type: Date,
+        default: Date.now,
+    },
+    isVerified: {
+        type: Boolean,
+        default: false,
+    },
+    resetPasswordToken: String,
+    resetPasswordExpiresAt: Date,
+    verificationToken: String,
+    verificationTokenExpiresAt: Date,
+},
+    { timestamps: true }
+);
 
-userSchema.pre('save', async function(next) {
-    if (!this.isModified('password')) {
-        return next();
-    }
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    this.updatedAt = Date.now(); // Update updatedAt timestamp
-    next();
-});
-
-userSchema.methods.comparePassword = async function(candidatePassword) {
-    return await bcrypt.compare(candidatePassword, this.password);
-};
-
-module.exports = mongoose.model('User', userSchema);
+export const User = mongoose.model("User", userSchema);
