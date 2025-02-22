@@ -1,7 +1,7 @@
-    pipeline {
+pipeline {
     agent any
 
-        environment { 
+    environment { 
         NEXUS_VERSION = "nexus3"
         NEXUS_PROTOCOL = "http"
         NEXUS_URL = "192.168.33.10:8083"
@@ -12,8 +12,9 @@
 
         registryCredentials = "nexus"
         registry = "192.168.33.10:8083"
-    
-        } 
+
+        RELEASE_REPO = 'docker-repo'
+    } 
 
     stages {
         stage('Install Dependencies') {
@@ -33,16 +34,17 @@
                 }
             }
         }
+
         stage('SonarQube Analysis') {
-                  steps{
-                      script {  
+            steps {
+                script {  
                     def scannerHome = tool 'scanner'
                     withSonarQubeEnv {
-                    sh "${scannerHome}/bin/sonar-scanner"
-                        }
+                        sh "${scannerHome}/bin/sonar-scanner"
+                    }
                 } 
-              }  
             }
+        }
 
         stage('Build Application') {
             steps {
@@ -53,8 +55,7 @@
             }
         }
 
-
-      // Building Docker images
+        // Building Docker images
         stage('Building images (node and mongo)') {
             steps {
                 script {
@@ -63,30 +64,38 @@
             }
         }
 
-         
-        //  Uploading Docker images into Nexus Registry
-    stage('Deploy  to Nexus') {
-     steps{  
-         script {
-
-             docker.withRegistry("http://"+registry, registryCredentials ) {
-            sh('docker push $registry/nodemongoapp:6.0 ')
-          }
+        // Uploading Docker images into Nexus Registry
+        stage('Deploy to Nexus') {
+            steps {  
+                script {
+                    docker.withRegistry("http://$registry", registryCredentials) {
+                        sh 'docker push $registry/$DOCKER_IMAGE:$DOCKER_TAG'
+                    }
+                }
+            }
         }
-      }
-    }
 
-     stage('Run application ') {
-     steps{  
-         script {
-           docker.withRegistry("http://"+registry, registryCredentials ) {
-
-            sh('docker pull $registry/nodemongoapp:6.0 ')
-
-            sh('docker-compose up -d ')
-          }
+        // Uploading artifacts to Nexus Repository
+        stage("Upload Artifact") {
+            steps {
+                nexusArtifactUploader(
+                    nexusVersion: "${NEXUS_VERSION}",
+                    protocol: "${NEXUS_PROTOCOL}",
+                    nexusUrl: "${NEXUS_URL}",
+                    groupId: 'Dev',
+                    version: "${env.BUILD_ID}-${env.BUILD_TIMESTAMP}",
+                    repository: "${RELEASE_REPO}",
+                    credentialsId: "${NEXUS_CREDENTIAL_ID}",
+                    artifacts: [
+                        [
+                            artifactId: 'vproapp',
+                            classifier: '',
+                            file: 'target/vprofile-v2.war', // Path to your artifact
+                            type: 'war'
+                        ]
+                    ]
+                )
+            }
         }
-      }
-    }
     }
 }
