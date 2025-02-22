@@ -1,5 +1,9 @@
 import bcryptjs from "bcryptjs";
 import crypto from "crypto";
+import dotenv from "dotenv";
+dotenv.config(); // Load environment variables from .env file
+import {OAuth2Client} from "google-auth-library";
+import generator from "generate-password";
 
 import { generateTokenAndSetCookie } from "../utils/generateTokenAndSetCookie.js";
 import {
@@ -198,3 +202,119 @@ export const checkAuth = async (req, res) => {
 		res.status(400).json({ success: false, message: error.message });
 	}
 };
+
+
+/* Google sign-up and log in => */
+export const googleAuthRequest = async (req, res)=> {
+	res.header("Access-Control-Allow-Origin", 'http://localhost:5173');
+	res.header("Access-Control-Allow-Credentials", 'true');
+	res.header("Referrer-Policy","no-referrer-when-downgrade");
+	const redirectURL = 'http://127.0.0.1:5000/api/auth/googleAuth';
+
+	const oAuth2Client = new OAuth2Client(
+		process.env.CLIENT_ID,
+		process.env.CLIENT_SECRET,
+		redirectURL
+	);
+
+	// Generate the url that will be used for the consent dialog.
+	const authorizeUrl = oAuth2Client.generateAuthUrl({
+		access_type: 'offline',
+		scope: 'https://www.googleapis.com/auth/userinfo.profile  openid ',
+		prompt: 'consent'
+	});
+
+	res.json({url:authorizeUrl})
+
+}
+
+async function getUserEmail(access_token,idToken,google_id) {
+	const client = new OAuth2Client(google_id);
+	const ticket = await client.verifyIdToken({
+		idToken,
+		audience: google_id,
+	});
+	const payload = ticket.getPayload();
+	console.log("User Email:", payload.email);
+	return payload.email;
+}
+
+async function getUserData(access_token,id_token) {
+
+	const response = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${access_token}`);
+
+	//console.log('response',response);
+	const data = await response.json();
+
+	data.email = await getUserEmail(access_token,id_token,data.sub);
+
+	console.log('data',data);
+	return data;
+}
+
+export const googleAuth = async (req, res)=> {
+	const code = req.query.code;
+
+	console.log(code);
+	try {
+		const redirectURL = "http://127.0.0.1:5000/api/auth/googleAuth"
+		const oAuth2Client = new OAuth2Client(
+			process.env.CLIENT_ID,
+			process.env.CLIENT_SECRET,
+			redirectURL
+		);
+		const r =  await oAuth2Client.getToken(code);
+		// Make sure to set the credentials on the OAuth2 client.
+		await oAuth2Client.setCredentials(r.tokens);
+		console.info('Tokens acquired.');
+		const user_ = oAuth2Client.credentials;
+		console.log('credentials',user_);
+		const user_data = await getUserData(user_.access_token,user_.id_token);
+		let { email, password } = user_data;
+		let user = await User.findOne({ email });
+		if (!user) {
+			password = generator.generate({
+				length: 12,
+				numbers: true,
+				symbols: true,
+				uppercase: true,
+				lowercase: true,
+				strict: true, // Ensures at least one of each type
+			});
+			const hashedPassword = await bcryptjs.hash(password, 10);
+			const verificationToken = Math.floor(100000 + Math.random() * 900000).toString();
+
+			user = new User({
+				email,
+				password: hashedPassword,
+				name,
+				verificationToken,
+				verificationTokenExpiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+			});
+			await user.save();
+			user = await User.findOne({ email });
+		}
+
+
+		generateTokenAndSetCookie(res, user._id);
+
+		user.lastLogin = new Date();
+		await user.save();
+
+		res.status(200).json({
+			success: true,
+			message: "Logged in successfully",
+			user: {
+				...user._doc,
+				password: undefined,
+			},
+		});
+	} catch (err) {
+		console.log('Error logging in with OAuth2 user', err);
+	}
+
+
+	res.redirect(303, 'http://localhost:5173/');
+}
+/* <= Google sign-up and log in */
+

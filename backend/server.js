@@ -7,6 +7,7 @@ import path from "path";
 import { connectDB } from "./db/connectDB.js";
 
 import authRoutes from "./routes/auth.route.js";
+import mongoose from "mongoose";
 
 dotenv.config();
 
@@ -29,7 +30,29 @@ if (process.env.NODE_ENV === "production") {
     });
 }
 
+mongoose.connect("mongodb://localhost:27017/AccountingManagementApp")
+    .then(() => {
+        console.log('Successfully connected to MongoDB.');
+    })
+    .catch((error) => {
+        console.error('Error connecting to MongoDB:', error);
+        process.exit(1);
+    });
+
+// Handle MongoDB connection events
+mongoose.connection.on('connected', () => {
+    console.log('MongoDB connected to:', mongoose.connection.host);
+});
+
+mongoose.connection.on('error', (err) => {
+    console.error('MongoDB connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+    console.log('MongoDB disconnected');
+});
+
 app.listen(PORT, () => {
-    connectDB();
+    //connectDB();
     console.log("Server is running on port: ", PORT);
 });
