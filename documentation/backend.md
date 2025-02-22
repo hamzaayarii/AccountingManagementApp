@@ -4,4 +4,4 @@
 
 Below is the login workflow for the backend:
 
-![Login Workflow](../images/login_workflow.png)
+![Login Workflow](../documentation/images/login_workflow.png)
