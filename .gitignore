@@ -1,7 +1,5 @@
 # Node.js dependencies
 node_modules/
-.env
-package-lock.json
 
 # React build files
 /build/
