@@ -1,16 +1,15 @@
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const dbConfig = require('./config/db.json'); // MongoDB connection config
 const jwt = require('jsonwebtoken');
+const dbConfig = require('./config/db.json'); // MongoDB connection config
 const userRoutes = require('./routes/userRoutes'); // User routes
-const productRoutes = require('./routes/productRoutes'); // Product routes
-const salesReceiptsRoutes = require('./routes/salesReceipts'); // Sales Receipts routes
 const User = require('./models/User'); // Import the User model
-const Product = require('./models/Product'); // Import the Product model
 const authenticate = require('./middlewares/authMiddleware'); // Authentication middleware
+const saleRoutes = require('./routes/saleRoutes'); // Sales routes
 const taxReportsRoutes = require('./routes/taxReportsRoutes');
 const app = express();
+const invoiceRoutes = require('./routes/invoiceRoutes');
 
 // MongoDB connection
 mongoose.connect(dbConfig.mongodb.url, { useNewUrlParser: true, useUnifiedTopology: true })
@@ -18,13 +17,12 @@ mongoose.connect(dbConfig.mongodb.url, { useNewUrlParser: true, useUnifiedTopolo
     .catch((err) => console.error('Failed to connect to MongoDB:', err));
 
 // Middleware
-app.use(cors({ origin: 'http://localhost:3000', method: 'GET,POST', credentials: true }));
+app.use(cors({ origin: 'http://localhost:3000', methods: 'GET,POST,PUT,DELETE', credentials: true }));
 app.use(express.json());  // To parse JSON request bodies
 
 // Routes
-app.use('/api/users', userRoutes);  // User routes
-app.use('/api/products', productRoutes);  // Products routes
-app.use('/api/salesReceipts', salesReceiptsRoutes);  // Sales Receipts routes
+app.use('/api/users', userRoutes);
+app.use('/api/invoices', invoiceRoutes);
 
 // Fetch user data by ID (API route)
 app.get('/api/users/:id', authenticate, async (req, res) => {
@@ -41,8 +39,8 @@ app.get('/api/users/:id', authenticate, async (req, res) => {
     }
 });
 
+app.use('/api/sales', saleRoutes);  // Sales routes
 app.use('/api/taxReports', taxReportsRoutes);  // Tax Reports routes
-
 // Base route
 app.get('/', (req, res) => {
     res.send('Welcome to AccountingManagementApp');
