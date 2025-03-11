@@ -1,6 +1,7 @@
 import React from 'react';
 import Index from 'views/Index.js';
 import Profile from 'views/examples/Profile.js';
+import Sales from 'views/examples/Sales.js'; // Corrected import path
 import Register from 'views/examples/Register.js';
 import Login from 'views/examples/Login.js';
 import Tables from 'views/examples/Tables.js';
@@ -9,8 +10,8 @@ import AuthRoute from 'components/AuthRoute.js';
 import UserList from './views/examples/UserList.js'; // Corrected import path
 import TaxReportForm from './views/examples/TaxReportForm';  // Add import for TaxReportForm
 import TaxReportsList from './views/examples/TaxReportsList'; // Add import for TaxReportsList
-import Items from './views/examples/Items.js'; // Add import for Items
-
+import CreateInvoice from './views/examples/CreateInvoice';
+import InvoiceList from './views/examples/InvoiceList';
 var routes = [
   {
     path: '/index',
@@ -19,17 +20,6 @@ var routes = [
     component: (
         <AuthRoute>
           <Index />
-        </AuthRoute>
-    ),
-    layout: '/admin',
-  },
-  {
-    path: '/items',
-    name: 'Items',
-    icon: 'ni ni-box-2 text-orange',
-    component: (
-        <AuthRoute>
-          <Items />
         </AuthRoute>
     ),
     layout: '/admin',
@@ -46,12 +36,46 @@ var routes = [
     layout: '/admin',
   },
   {
+    path: '/create-invoice',
+    name: 'Create Invoice',
+    icon: 'ni ni-paper-diploma text-blue',
+    component: (
+        <AuthRoute>
+          <CreateInvoice />
+        </AuthRoute>
+    ),
+    layout: '/admin',
+  },
+  // ✅ Nouvelle route pour la liste des factures
+  {
+    path: '/invoices',
+    name: 'Invoices List',
+    icon: 'ni ni-bullet-list-67 text-green',
+    component: (
+        <AuthRoute>
+          <InvoiceList />
+        </AuthRoute>
+    ),
+    layout: '/admin',
+  },
+  {
     path: '/icons',
     name: 'Icons',
     icon: 'ni ni-planet text-blue',
     component: (
         <AuthRoute>
           <Icons />
+        </AuthRoute>
+    ),
+    layout: '/admin',
+  },
+  {
+    path: '/sales', // Updated path
+    name: 'Sales', // Updated name
+    icon: 'ni ni-cart text-orange', // Updated icon
+    component: (
+        <AuthRoute>
+          <Sales /> {/* Updated component */}
         </AuthRoute>
     ),
     layout: '/admin',
