@@ -41,22 +41,24 @@ const BusinessManagement = () => {
                 return;
             }
 
-            const response = await fetch('http://localhost:5000/api/business/buisnessowner', {
+            const response = await fetch('http://localhost:5000/api/business/user-businesses', {
                 headers: {
-                    'Authorization': `Bearer ${token}`
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
                 }
             });
 
             const data = await response.json();
 
-            if (data.status) {
-                setBusinesses(data.businesses);
+            if (response.ok) {
+                setBusinesses(data.businesses || []);
+                setError(null);
             } else {
-                setError(data.errorMessage || 'Failed to load businesses');
+                setError(data.message || 'Failed to load businesses');
             }
         } catch (err) {
-            setError('Error connecting to server');
             console.error('Error fetching businesses:', err);
+            setError('Error connecting to server. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -80,25 +82,26 @@ const BusinessManagement = () => {
 
         try {
             const token = localStorage.getItem('authToken');
-            const response = await fetch(`http://localhost:5000/api/business/deletebusiness/${businessToDelete._id}`, {
+            const response = await fetch(`http://localhost:5000/api/business/${businessToDelete._id}`, {
                 method: 'DELETE',
                 headers: {
-                    'Authorization': `Bearer ${token}`
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
                 }
             });
 
             const data = await response.json();
 
-            if (data.status) {
-                // Remove the deleted business from the state
+            if (response.ok) {
                 setBusinesses(businesses.filter(b => b._id !== businessToDelete._id));
+                setError(null);
                 toggleDeleteModal();
             } else {
-                setError(data.errorMessage || 'Failed to delete business');
+                setError(data.message || 'Failed to delete business');
             }
         } catch (err) {
-            setError('Error connecting to server');
             console.error('Error deleting business:', err);
+            setError('Error connecting to server. Please try again.');
         }
     };
 

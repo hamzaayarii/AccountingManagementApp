@@ -70,8 +70,10 @@ const Login = () => {
       console.log('Server response:', response.data);
 
       if (response.data.success) {
-        localStorage.setItem('authToken', response.data.token);
+        // Store complete user data first
         localStorage.setItem('user', JSON.stringify(response.data.user));
+        // Then store auth token
+        localStorage.setItem('authToken', response.data.token);
 
         try {
           const businessResponse = await axios.get('http://localhost:5000/api/business/check', {

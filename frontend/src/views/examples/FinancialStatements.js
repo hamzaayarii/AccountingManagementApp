@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Alert } from 'reactstrap';
+import { Alert, Spinner } from 'reactstrap';
 import styles from '../../assets/css/FinancialStatements.module.css';
+import { jwtDecode } from 'jwt-decode';
 
 const FinancialStatements = () => {
     const [statements, setStatements] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [loadingBusinesses, setLoadingBusinesses] = useState(true);
     const [error, setError] = useState('');
     const [businesses, setBusinesses] = useState([]);
     const [formData, setFormData] = useState({
@@ -13,24 +15,63 @@ const FinancialStatements = () => {
         periodStart: '',
         periodEnd: ''
     });
+    const [userRole, setUserRole] = useState(null);
+
+    useEffect(() => {
+        const token = localStorage.getItem('authToken');
+        if (token) {
+            const decoded = jwtDecode(token);
+            setUserRole(decoded.role);
+        }
+    }, []);
 
     useEffect(() => {
         const fetchBusinesses = async () => {
+            setLoadingBusinesses(true);
+            setError('');
             try {
                 const token = localStorage.getItem('authToken');
-                const response = await axios.get('http://localhost:5000/api/business/buisnessowner', {
+                if (!token) {
+                    setError('You must be logged in');
+                    return;
+                }
+
+                const response = await axios.get('http://localhost:5000/api/business/user-businesses', {
                     headers: { Authorization: `Bearer ${token}` }
                 });
-                setBusinesses(response.data.businesses || []);
+
+                const businessList = response.data.businesses || [];
+                setBusinesses(businessList);
+
+                if (businessList.length > 0) {
+                    setFormData(prev => ({
+                        ...prev,
+                        businessId: businessList[0]._id
+                    }));
+                } else {
+                    setError(userRole === 'accountant' 
+                        ? 'No businesses assigned to you. Please wait for business owners to assign you.' 
+                        : 'No businesses found. Please create a business first.');
+                }
             } catch (err) {
-                setError('Erreur lors de la récupération des sociétés');
+                console.error('Error fetching businesses:', err);
+                setError(err.response?.data?.message || 'Error retrieving businesses');
+            } finally {
+                setLoadingBusinesses(false);
             }
         };
 
-        fetchBusinesses();
-    }, []);
+        if (userRole) {
+            fetchBusinesses();
+        }
+    }, [userRole]);
 
     const handleGenerateBalanceSheet = async () => {
+        if (!formData.businessId || !formData.periodStart || !formData.periodEnd) {
+            setError('Please fill in all fields');
+            return;
+        }
+
         setError('');
         setLoading(true);
 
@@ -43,15 +84,17 @@ const FinancialStatements = () => {
             );
 
             setStatements([...statements, response.data.financialStatement]);
+            setLoading(false);
         } catch (err) {
-            setError(err.response?.data?.message || 'Erreur lors de la génération du bilan');
-        } finally {
+            console.error('Error generating balance sheet:', err);
+            setError(err.response?.data?.message || 'Error generating balance sheet');
             setLoading(false);
         }
     };
 
     const handleInputChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
+        setError(''); // Clear any previous errors when user makes changes
     };
 
     return (
@@ -62,22 +105,48 @@ const FinancialStatements = () => {
             <div className={styles.form}>
                 <div className={styles.field}>
                     <label>Société</label>
-                    <select name="businessId" onChange={handleInputChange} value={formData.businessId}>
-                        <option value="">Sélectionner une société</option>
-                        {businesses.map(business => (
-                            <option key={business._id} value={business._id}>{business.name}</option>
-                        ))}
-                    </select>
+                    {loadingBusinesses ? (
+                        <div className={styles.spinnerContainer}>
+                            <Spinner size="sm" />
+                        </div>
+                    ) : (
+                        <select 
+                            name="businessId" 
+                            onChange={handleInputChange} 
+                            value={formData.businessId}
+                            disabled={businesses.length === 0 || loading}
+                        >
+                            <option value="">Sélectionner une société</option>
+                            {businesses.map(business => (
+                                <option key={business._id} value={business._id}>{business.name}</option>
+                            ))}
+                        </select>
+                    )}
                 </div>
                 <div className={styles.field}>
                     <label>Début de période</label>
-                    <input type="date" name="periodStart" onChange={handleInputChange} value={formData.periodStart} />
+                    <input 
+                        type="date" 
+                        name="periodStart" 
+                        onChange={handleInputChange} 
+                        value={formData.periodStart}
+                        disabled={!formData.businessId || loading} 
+                    />
                 </div>
                 <div className={styles.field}>
                     <label>Fin de période</label>
-                    <input type="date" name="periodEnd" onChange={handleInputChange} value={formData.periodEnd} />
+                    <input 
+                        type="date" 
+                        name="periodEnd" 
+                        onChange={handleInputChange} 
+                        value={formData.periodEnd}
+                        disabled={!formData.businessId || loading}
+                    />
                 </div>
-                <button onClick={handleGenerateBalanceSheet} disabled={loading}>
+                <button 
+                    onClick={handleGenerateBalanceSheet} 
+                    disabled={loading || !formData.businessId || !formData.periodStart || !formData.periodEnd}
+                >
                     {loading ? 'Génération...' : 'Générer un bilan'}
                 </button>
             </div>

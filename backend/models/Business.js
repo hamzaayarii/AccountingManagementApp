@@ -15,7 +15,8 @@ const businessSchema = new mongoose.Schema({
     vatRegistration: { type: Boolean, default: false },
     exportOriented: { type: Boolean, default: false },
     employeeCount: { type: String, default: '1-5' },
-    owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Relation with User
+    owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Relation with User (Business Owner)
+    accountant: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }, // Relation with User (Accountant)
 }, {
     timestamps: true
 });

@@ -286,6 +286,16 @@ const Journal = () => {
     }
   };
 
+  const handleDelete = async (entryId) => {
+    try {
+      await api.delete(`/journal/${entryId}`);
+      showNotification('Journal entry deleted successfully');
+      fetchEntries();
+    } catch (error) {
+      showNotification('Failed to delete entry: ' + error.message, 'danger');
+    }
+  };
+
   return (
     <>
       <Header />
@@ -426,7 +436,7 @@ const Journal = () => {
                                 color="danger"
                                 size="sm"
                                 className="mr-2"
-                                onClick={() => handleStatusChange(entry._id, 'DELETED')}
+                                onClick={() => handleDelete(entry._id)}
                               >
                                 <FaTrash />
                               </Button>

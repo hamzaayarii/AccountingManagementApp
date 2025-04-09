@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Alert, Modal, ModalHeader, ModalBody, ModalFooter, Button, Card, CardBody, CardTitle, Input, Label, FormFeedback, FormGroup } from 'reactstrap';
+import { jwtDecode } from 'jwt-decode';
+import { Alert, Modal, ModalHeader, ModalBody, ModalFooter, Button, Card, CardHeader, CardBody, CardTitle, Input, Label, FormFeedback, FormGroup, Row, Col, Table, Form } from 'reactstrap';
 import { FaUserPlus, FaUpload, FaEdit, FaTrash, FaCalendarAlt, FaSpinner } from 'react-icons/fa';
 import debounce from 'lodash/debounce';
 import styles from '../../assets/css/EmployeeManagement.module.css';
@@ -14,18 +15,24 @@ const PATTERNS = {
     reason: /^.{2,200}$/,
 };
 
-// Messages d'erreur personnalisés
+// Error messages
 const ERROR_MESSAGES = {
-    required: 'Ce champ est requis',
-    invalidName: '2-50 caractères, lettres uniquement',
-    invalidPosition: '2-100 caractères, lettres uniquement',
-    invalidSalary: 'Nombre positif requis',
-    invalidDate: 'Format YYYY-MM-DD requis',
-    pastLimit: 'Date antérieure à 2000 non permise',
-    futureDate: 'Date future non permise',
-    invalidReason: '2-200 caractères requis',
-    invalidDateRange: 'Date de fin doit être après date de début',
+    required: 'This field is required',
+    invalidName: 'Name must be 2-50 characters, letters only',
+    invalidPosition: 'Position must be 2-100 characters, letters only',
+    invalidSalary: 'Please enter a valid positive number',
+    invalidDate: 'Please use YYYY-MM-DD format',
+    pastLimit: 'Date cannot be before year 2000',
+    futureDate: 'Future dates are not allowed',
+    invalidReason: 'Must be 2-200 characters',
+    invalidDateRange: 'End date must be after start date',
+    businessRequired: 'Please select a business',
+    unauthorized: 'You must be a business owner to manage employees',
+    serverError: 'Server error occurred. Please try again.',
+    networkError: 'Network error. Please check your connection.',
 };
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 const EmployeeManagement = () => {
     const [employees, setEmployees] = useState([]);
@@ -33,6 +40,7 @@ const EmployeeManagement = () => {
     const [loading, setLoading] = useState({ fetch: false, submit: false });
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [userRole, setUserRole] = useState(null);
     const [formData, setFormData] = useState({
         firstName: '', lastName: '', position: '', salary: '', hireDate: '', businessId: ''
     });
@@ -40,16 +48,14 @@ const EmployeeManagement = () => {
         firstName: '', lastName: '', position: '', salary: '', hireDate: '', businessId: ''
     });
     const [editEmployee, setEditEmployee] = useState(null);
-    const [importData, setImportData] = useState('');
+    const [showAbsenceModal, setShowAbsenceModal] = useState(false);
     const [absenceData, setAbsenceData] = useState({
         employeeId: '', startDate: '', endDate: '', reason: ''
     });
     const [absenceErrors, setAbsenceErrors] = useState({
         employeeId: '', startDate: '', endDate: '', reason: ''
     });
-    const [showAbsenceModal, setShowAbsenceModal] = useState(false);
-
-    const API_URL = 'http://localhost:5000/api';
+    const [importData, setImportData] = useState(null);
 
     // Validation avancée
     const validateName = useCallback((value) => {
@@ -117,43 +123,120 @@ const EmployeeManagement = () => {
         [validateName, validatePosition, validateSalary, validateDate, validateReason, validateEmployeeId, validateBusinessId]
     );
 
-    useEffect(() => {
-        fetchBusinesses();
-        fetchEmployees();
-    }, []);
+    const fetchEmployees = async () => {
+        setLoading(prev => ({ ...prev, fetch: true }));
+        setError('');
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                setError('Authentication required. Please log in.');
+                return;
+            }
+            
+            const response = await axios.get(`${API_URL}/employees`, {
+                headers: { 
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.data.success) {
+                setEmployees(response.data.employees || []);
+                setError(null);
+            } else {
+                setError(response.data.message || 'Failed to load employees');
+            }
+        } catch (err) {
+            console.error('Error fetching employees:', err);
+            if (err.response?.status === 403) {
+                setError('Access denied. Only business owners can manage employees.');
+            } else if (err.response?.status === 401) {
+                setError('Authentication required. Please log in.');
+            } else {
+                setError(err.response?.data?.message || 'Unable to connect to server. Please try again.');
+            }
+        } finally {
+            setLoading(prev => ({ ...prev, fetch: false }));
+        }
+    };
+
+    const checkBusinessOwner = () => {
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+        return userData && userData.role === 'business_owner';
+    };
 
     const fetchBusinesses = async () => {
         setLoading(prev => ({ ...prev, fetch: true }));
         try {
             const token = localStorage.getItem('authToken');
-            const response = await axios.get(`${API_URL}/business/buisnessowner`, {
-                headers: { Authorization: `Bearer ${token}` }
+            if (!token) {
+                setError('Authentication required. Please log in.');
+                return;
+            }
+            const response = await axios.get(`${API_URL}/business/user-businesses`, {
+                headers: { 
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
             });
-            setBusinesses(response.data.businesses || []);
-            if (response.data.businesses.length > 0 && !formData.businessId) {
-                setFormData(prev => ({ ...prev, businessId: response.data.businesses[0]._id }));
+            
+            if (response.data && Array.isArray(response.data.businesses)) {
+                setBusinesses(response.data.businesses);
+                // Set the first business as default if available and no business is selected
+                if (response.data.businesses.length > 0 && !formData.businessId) {
+                    setFormData(prev => ({ ...prev, businessId: response.data.businesses[0]._id }));
+                }
+            } else {
+                console.error('Invalid business data format:', response.data);
+                setError('Failed to load businesses. Please try again.');
             }
         } catch (err) {
-            setError('Échec du chargement des entreprises');
+            console.error('Error fetching businesses:', err);
+            setError('Failed to load businesses. Please try again.');
         } finally {
             setLoading(prev => ({ ...prev, fetch: false }));
         }
     };
 
-    const fetchEmployees = async () => {
-        setLoading(prev => ({ ...prev, fetch: true }));
-        try {
+    useEffect(() => {
+        const checkAuthAndFetch = async () => {
             const token = localStorage.getItem('authToken');
-            const response = await axios.get(`${API_URL}/employees`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setEmployees(response.data.employees || []);
-        } catch (err) {
-            setError(err.response?.data?.message || 'Échec du chargement des employés');
-        } finally {
-            setLoading(prev => ({ ...prev, fetch: false }));
-        }
-    };
+            const userData = JSON.parse(localStorage.getItem('user') || '{}');
+            
+            if (!token || !userData) {
+                setError(ERROR_MESSAGES.unauthorized);
+                return;
+            }
+
+            try {
+                // Set user role
+                setUserRole(userData.role);
+
+                // Verify user role from stored data
+                if (userData.role !== 'business_owner') {
+                    setError('Access denied. Only business owners can manage employees.');
+                    return;
+                }
+
+                // Fetch both businesses and employees
+                await Promise.all([
+                    fetchBusinesses(),
+                    fetchEmployees()
+                ]);
+            } catch (err) {
+                console.error('Auth error:', err);
+                if (err.response?.status === 401) {
+                    setError('Authentication required. Please log in.');
+                } else if (err.response?.status === 403) {
+                    setError('Access denied. Only business owners can manage employees.');
+                } else {
+                    setError(err.response?.data?.message || 'Authentication failed');
+                }
+            }
+        };
+
+        checkAuthAndFetch();
+    }, []);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -198,45 +281,76 @@ const EmployeeManagement = () => {
         return Object.values(errors).every(error => !error);
     };
 
-    const handleSubmit = async (e, isUpdate = false) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!validateForm()) return;
+        if (Object.values(formErrors).some(err => !!err)) {
+            setError('Please fix the form errors before submitting');
+            return;
+        }
+
+        if (!formData.businessId) {
+            setError(ERROR_MESSAGES.businessRequired);
+            return;
+        }
+
         setLoading(prev => ({ ...prev, submit: true }));
         setError('');
         setSuccess('');
+
         try {
             const token = localStorage.getItem('authToken');
-            const url = isUpdate ? `${API_URL}/employees/${editEmployee._id}` : `${API_URL}/employees`;
-            const method = isUpdate ? axios.put : axios.post;
-            const response = await method(url, formData, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (isUpdate) {
-                setEmployees(employees.map(emp => emp._id === editEmployee._id ? response.data.employee : emp));
-                setEditEmployee(null);
-            } else {
-                setEmployees([...employees, response.data.employee]);
+            if (!token) {
+                setError(ERROR_MESSAGES.unauthorized);
+                return;
             }
-            setSuccess(isUpdate ? 'Employé mis à jour avec succès !' : 'Employé ajouté avec succès !');
-            resetForm();
+
+            const endpoint = editEmployee
+                ? `${API_URL}/employees/${editEmployee._id}`
+                : `${API_URL}/employees`;
+
+            const method = editEmployee ? 'put' : 'post';
+
+            const response = await axios[method](endpoint, formData, {
+                headers: { 
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.data.success || response.data.employee) {
+                const newEmployee = response.data.employee;
+                
+                if (editEmployee) {
+                    // Update existing employee in the list
+                    setEmployees(prevEmployees => 
+                        prevEmployees.map(emp => 
+                            emp._id === editEmployee._id ? newEmployee : emp
+                        )
+                    );
+                } else {
+                    // Add new employee to the list
+                    setEmployees(prevEmployees => [...prevEmployees, newEmployee]);
+                }
+                
+                // Show success message and reset form
+                setSuccess(editEmployee ? 'Employee updated successfully!' : 'Employee added successfully!');
+                setEditEmployee(null);
+                resetForm();
+            } else {
+                setError(response.data.message || ERROR_MESSAGES.serverError);
+            }
         } catch (err) {
-            setError(err.response?.data?.message || `Échec de ${isUpdate ? 'la mise à jour' : 'l\'ajout'} de l'employé`);
+            console.error('Submit error:', err);
+            if (err.response?.status === 401 || err.response?.status === 403) {
+                setError(ERROR_MESSAGES.unauthorized);
+            } else if (!navigator.onLine) {
+                setError(ERROR_MESSAGES.networkError);
+            } else {
+                setError(err.response?.data?.message || ERROR_MESSAGES.serverError);
+            }
         } finally {
             setLoading(prev => ({ ...prev, submit: false }));
         }
-    };
-
-    const handleEditEmployee = (employee) => {
-        setEditEmployee(employee);
-        setFormData({
-            firstName: employee.firstName,
-            lastName: employee.lastName,
-            position: employee.position,
-            salary: employee.salary.toString(),
-            hireDate: new Date(employee.hireDate).toISOString().split('T')[0],
-            businessId: employee.businessId._id || employee.businessId
-        });
-        setFormErrors({ firstName: '', lastName: '', position: '', salary: '', hireDate: '', businessId: '' });
     };
 
     const handleDeleteEmployee = async (id) => {
@@ -257,27 +371,33 @@ const EmployeeManagement = () => {
     };
 
     const handleImportEmployees = async () => {
+        if (!importData) {
+            setError('Please select a file to import');
+            return;
+        }
+
         setLoading(prev => ({ ...prev, submit: true }));
         try {
-            const employeesToImport = JSON.parse(importData);
-            if (!Array.isArray(employeesToImport) || employeesToImport.length === 0) {
-                throw new Error('Veuillez fournir un tableau JSON valide');
-            }
-            employeesToImport.forEach(emp => {
-                if (validateName(emp.firstName) || validateName(emp.lastName) || validatePosition(emp.position) ||
-                    validateSalary(emp.salary) || validateDate(emp.hireDate) || !emp.businessId) {
-                    throw new Error('Tous les champs des employés doivent être valides dans le JSON');
+            const token = localStorage.getItem('authToken');
+            const formData = new FormData();
+            formData.append('file', importData);
+
+            const response = await axios.post(`${API_URL}/auth/employees/import`, formData, {
+                headers: { 
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'multipart/form-data'
                 }
             });
-            const token = localStorage.getItem('authToken');
-            const response = await axios.post(`${API_URL}/employees/import`, { employees: employeesToImport }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setEmployees([...employees, ...response.data.employees]);
-            setSuccess('Employés importés avec succès !');
-            setImportData('');
+
+            if (response.data.success) {
+                setSuccess('Employees imported successfully!');
+                await fetchEmployees();
+            } else {
+                setError(response.data.message || 'Import failed');
+            }
         } catch (err) {
-            setError(err.response?.data?.message || err.message || 'Échec de l\'importation des employés');
+            console.error('Import error:', err);
+            setError(err.response?.data?.message || 'Import failed');
         } finally {
             setLoading(prev => ({ ...prev, submit: false }));
         }
@@ -285,22 +405,40 @@ const EmployeeManagement = () => {
 
     const handleAddAbsence = async () => {
         if (!validateAbsence()) return;
+
         setLoading(prev => ({ ...prev, submit: true }));
         try {
             const token = localStorage.getItem('authToken');
             const response = await axios.post(`${API_URL}/employees/${absenceData.employeeId}/absences`, absenceData, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            setEmployees(employees.map(emp => emp._id === absenceData.employeeId ? response.data.employee : emp));
-            setSuccess('Absence enregistrée avec succès !');
-            setShowAbsenceModal(false);
-            setAbsenceData({ employeeId: '', startDate: '', endDate: '', reason: '' });
-            setAbsenceErrors({ employeeId: '', startDate: '', endDate: '', reason: '' });
+
+            if (response.data.success) {
+                setSuccess('Absence added successfully!');
+                setShowAbsenceModal(false);
+                setAbsenceData({ employeeId: '', startDate: '', endDate: '', reason: '' });
+                setAbsenceErrors({ employeeId: '', startDate: '', endDate: '', reason: '' });
+            } else {
+                setError(response.data.message || 'Failed to add absence');
+            }
         } catch (err) {
-            setError(err.response?.data?.message || 'Échec de l\'ajout de l\'absence');
+            console.error('Absence error:', err);
+            setError(err.response?.data?.message || 'Failed to add absence');
         } finally {
             setLoading(prev => ({ ...prev, submit: false }));
         }
+    };
+
+    const handleEditEmployee = (employee) => {
+        setEditEmployee(employee);
+        setFormData({
+            firstName: employee.firstName,
+            lastName: employee.lastName,
+            position: employee.position,
+            salary: employee.salary,
+            hireDate: employee.hireDate,
+            businessId: employee.businessId
+        });
     };
 
     const resetForm = () => {
@@ -310,241 +448,194 @@ const EmployeeManagement = () => {
 
     return (
         <div className={styles.container}>
-            <h2 className={styles.title}><FaUserPlus /> Team Dashboard</h2>
-            {error && <Alert color="danger" className={styles.alert}>{error}</Alert>}
-            {success && <Alert color="success" className={styles.alert}>{success}</Alert>}
-            {(loading.fetch || loading.submit) && (
-                <div className={styles.spinner}><FaSpinner className="fa-spin" /> Chargement...</div>
-            )}
-
-            {/* Formulaire employé (similaire au modal d'absence) */}
-            <Card className={styles.card}>
-                <CardTitle tag="h3" className={styles.cardTitle}>
-                    {editEmployee ? 'Update a Member' : 'Add a New Member'}
-                </CardTitle>
-                <CardBody>
-                    <div className={styles.form}>
-                        <FormGroup className={styles.field}>
-                            <Label>First name</Label>
-                            <Input
-                                type="text"
-                                name="firstName"
-                                value={formData.firstName}
-                                onChange={handleInputChange}
-                                disabled={loading.fetch || loading.submit}
-                                invalid={!!formErrors.firstName}
-                                required
-                            />
-                            <FormFeedback>{formErrors.firstName}</FormFeedback>
-                        </FormGroup>
-                        <FormGroup className={styles.field}>
-                            <Label>Name</Label>
-                            <Input
-                                type="text"
-                                name="lastName"
-                                value={formData.lastName}
-                                onChange={handleInputChange}
-                                disabled={loading.fetch || loading.submit}
-                                invalid={!!formErrors.lastName}
-                                required
-                            />
-                            <FormFeedback>{formErrors.lastName}</FormFeedback>
-                        </FormGroup>
-                        <FormGroup className={styles.field}>
-                            <Label>Job</Label>
-                            <Input
-                                type="text"
-                                name="position"
-                                value={formData.position}
-                                onChange={handleInputChange}
-                                disabled={loading.fetch || loading.submit}
-                                invalid={!!formErrors.position}
-                                required
-                            />
-                            <FormFeedback>{formErrors.position}</FormFeedback>
-                        </FormGroup>
-                        <FormGroup className={styles.field}>
-                            <Label>Salary (TND)</Label>
-                            <Input
-                                type="number"
-                                name="salary"
-                                value={formData.salary}
-                                onChange={handleInputChange}
-                                disabled={loading.fetch || loading.submit}
-                                invalid={!!formErrors.salary}
-                                required
-                                min="0"
-                                step="0.01"
-                            />
-                            <FormFeedback>{formErrors.salary}</FormFeedback>
-                        </FormGroup>
-                        <FormGroup className={styles.field}>
-                            <Label>Date of hire</Label>
-                            <Input
-                                type="date"
-                                name="hireDate"
-                                value={formData.hireDate}
-                                onChange={handleInputChange}
-                                disabled={loading.fetch || loading.submit}
-                                invalid={!!formErrors.hireDate}
-                                max={new Date().toISOString().split('T')[0]}
-                                required
-                            />
-                            <FormFeedback>{formErrors.hireDate}</FormFeedback>
-                        </FormGroup>
-                        <FormGroup className={styles.field}>
-                            <Label>Business</Label>
-                            <Input
-                                type="select"
-                                name="businessId"
-                                value={formData.businessId}
-                                onChange={handleInputChange}
-                                disabled={loading.fetch || loading.submit || !businesses.length}
-                                invalid={!!formErrors.businessId}
-                                required
-                            >
-                                <option value="">Sélectionnez une entreprise</option>
-                                {businesses.map(business => (
-                                    <option key={business._id} value={business._id}>{business.name}</option>
-                                ))}
-                            </Input>
-                            <FormFeedback>{formErrors.businessId}</FormFeedback>
-                        </FormGroup>
-                        <div className={styles.buttonGroup}>
-                            <Button
-                                color="primary"
-                                onClick={(e) => handleSubmit(e, !!editEmployee)}
-                                disabled={loading.submit || Object.values(formErrors).some(err => !!err)}
-                            >
-                                {loading.submit ? <FaSpinner className="fa-spin" /> : editEmployee ? 'To update' : 'Add'}
-                            </Button>
-                            {editEmployee && (
-                                <Button
-                                    color="secondary"
-                                    onClick={() => { setEditEmployee(null); resetForm(); }}
-                                    disabled={loading.submit}
-                                    className={styles.cancelButton}
-                                >
-                                    Annuler
-                                </Button>
-                            )}
-                        </div>
-                    </div>
-                </CardBody>
-            </Card>
-
-            {/* Liste des employés */}
-            <div className={styles.employeeList}>
-                <h3 className={styles.subtitle}>Your Team</h3>
-                {employees.length === 0 && !loading.fetch && !error ? (
-                    <Alert color="warning">No team members yet. Add more above. !</Alert>
-                ) : (
-                    employees.map(employee => (
-                        <Card key={employee._id} className={styles.employeeCard}>
-                            <CardBody>
-                                <div className={styles.employeeInfo}>
-                                    <h4>{employee.firstName} {employee.lastName}</h4>
-                                    <p><strong>Role:</strong> {employee.position}</p>
-                                    <p><strong>Salary:</strong> {employee.salary} TND</p>
-                                    <p><strong>Hiring:</strong> {new Date(employee.hireDate).toLocaleDateString('fr-FR')}</p>
-                                    <p><strong>Business:</strong> {employee.businessId?.name || 'N/A'}</p>
-                                    {employee.absences?.length > 0 && (
-                                        <div className={styles.absences}>
-                                            <strong>Absences:</strong>
-                                            <ul>
-                                                {employee.absences.map((absence, idx) => (
-                                                    <li key={idx}>
-                                                        {new Date(absence.startDate).toLocaleDateString('fr-FR')} - {new Date(absence.endDate).toLocaleDateString('fr-FR')}: {absence.reason}
-                                                    </li>
+            {error && <Alert color="danger">{error}</Alert>}
+            {success && <Alert color="success">{success}</Alert>}
+            
+            {(!userRole || userRole !== 'business_owner') ? (
+                <Alert color="warning">
+                    Access denied. Only business owners can manage employees.
+                </Alert>
+            ) : (
+                <>
+                    <Card className="shadow">
+                        <CardHeader className="border-0">
+                            <Row className="align-items-center">
+                                <Col>
+                                    <h3 className="mb-0">Add a New Member</h3>
+                                </Col>
+                            </Row>
+                        </CardHeader>
+                        <CardBody>
+                            <Form onSubmit={handleSubmit}>
+                                <Row>
+                                    <Col md="4">
+                                        <FormGroup>
+                                            <Label>First name</Label>
+                                            <Input
+                                                type="text"
+                                                name="firstName"
+                                                value={formData.firstName}
+                                                onChange={handleInputChange}
+                                                invalid={!!formErrors.firstName}
+                                                disabled={loading.submit}
+                                            />
+                                            <FormFeedback>{formErrors.firstName}</FormFeedback>
+                                        </FormGroup>
+                                    </Col>
+                                    <Col md="4">
+                                        <FormGroup>
+                                            <Label>Last name</Label>
+                                            <Input
+                                                type="text"
+                                                name="lastName"
+                                                value={formData.lastName}
+                                                onChange={handleInputChange}
+                                                invalid={!!formErrors.lastName}
+                                                disabled={loading.submit}
+                                            />
+                                            <FormFeedback>{formErrors.lastName}</FormFeedback>
+                                        </FormGroup>
+                                    </Col>
+                                    <Col md="4">
+                                        <FormGroup>
+                                            <Label>Job</Label>
+                                            <Input
+                                                type="text"
+                                                name="position"
+                                                value={formData.position}
+                                                onChange={handleInputChange}
+                                                invalid={!!formErrors.position}
+                                                disabled={loading.submit}
+                                            />
+                                            <FormFeedback>{formErrors.position}</FormFeedback>
+                                        </FormGroup>
+                                    </Col>
+                                </Row>
+                                <Row>
+                                    <Col md="4">
+                                        <FormGroup>
+                                            <Label>Salary (TND)</Label>
+                                            <Input
+                                                type="number"
+                                                name="salary"
+                                                value={formData.salary}
+                                                onChange={handleInputChange}
+                                                invalid={!!formErrors.salary}
+                                                disabled={loading.submit}
+                                            />
+                                            <FormFeedback>{formErrors.salary}</FormFeedback>
+                                        </FormGroup>
+                                    </Col>
+                                    <Col md="4">
+                                        <FormGroup>
+                                            <Label>Date of hire</Label>
+                                            <Input
+                                                type="date"
+                                                name="hireDate"
+                                                value={formData.hireDate}
+                                                onChange={handleInputChange}
+                                                invalid={!!formErrors.hireDate}
+                                                disabled={loading.submit}
+                                            />
+                                            <FormFeedback>{formErrors.hireDate}</FormFeedback>
+                                        </FormGroup>
+                                    </Col>
+                                    <Col md="4">
+                                        <FormGroup>
+                                            <Label>Business</Label>
+                                            <Input
+                                                type="select"
+                                                name="businessId"
+                                                value={formData.businessId}
+                                                onChange={handleInputChange}
+                                                invalid={!!formErrors.businessId}
+                                                disabled={loading.submit}
+                                            >
+                                                <option value="">Select a business</option>
+                                                {businesses.map(business => (
+                                                    <option key={business._id} value={business._id}>
+                                                        {business.name}
+                                                    </option>
                                                 ))}
-                                            </ul>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className={styles.employeeActions}>
-                                    <Button color="success" onClick={() => handleEditEmployee(employee)} disabled={loading.submit}><FaEdit /> To modify</Button>
-                                    <Button color="danger" onClick={() => handleDeleteEmployee(employee._id)} disabled={loading.submit}><FaTrash /> Delete</Button>
-                                    <Button color="warning" onClick={() => { setAbsenceData({ ...absenceData, employeeId: employee._id }); setShowAbsenceModal(true); }} disabled={loading.submit}><FaCalendarAlt /> Absence</Button>
-                                </div>
-                            </CardBody>
-                        </Card>
-                    ))
-                )}
-            </div>
+                                            </Input>
+                                            <FormFeedback>{formErrors.businessId}</FormFeedback>
+                                        </FormGroup>
+                                    </Col>
+                                </Row>
+                                <Button
+                                    type="submit"
+                                    color="primary"
+                                    disabled={loading.submit || Object.values(formErrors).some(err => !!err)}
+                                >
+                                    {loading.submit ? <FaSpinner className="fa-spin" /> : 'Add'}
+                                </Button>
+                            </Form>
+                        </CardBody>
+                    </Card>
 
-            {/* Modal Absence */}
-            <Modal isOpen={showAbsenceModal} toggle={() => setShowAbsenceModal(false)} className={styles.modal}>
-                <ModalHeader toggle={() => setShowAbsenceModal(false)}>Record an Absence</ModalHeader>
-                <ModalBody>
-                    <FormGroup className={styles.field}>
-                        <Label>Employee</Label>
-                        <Input
-                            type="select"
-                            name="employeeId"
-                            value={absenceData.employeeId}
-                            onChange={handleAbsenceInputChange}
-                            disabled={loading.fetch || loading.submit}
-                            invalid={!!absenceErrors.employeeId}
-                            required
-                        >
-                            <option value="">Select an employee</option>
-                            {employees.map(emp => (
-                                <option key={emp._id} value={emp._id}>{emp.firstName} {emp.lastName}</option>
-                            ))}
-                        </Input>
-                        <FormFeedback>{absenceErrors.employeeId}</FormFeedback>
-                    </FormGroup>
-                    <FormGroup className={styles.field}>
-                        <Label>Start date</Label>
-                        <Input
-                            type="date"
-                            name="startDate"
-                            value={absenceData.startDate}
-                            onChange={handleAbsenceInputChange}
-                            disabled={loading.fetch || loading.submit}
-                            invalid={!!absenceErrors.startDate}
-                            required
-                        />
-                        <FormFeedback>{absenceErrors.startDate}</FormFeedback>
-                    </FormGroup>
-                    <FormGroup className={styles.field}>
-                        <Label>End date</Label>
-                        <Input
-                            type="date"
-                            name="endDate"
-                            value={absenceData.endDate}
-                            onChange={handleAbsenceInputChange}
-                            disabled={loading.fetch || loading.submit}
-                            invalid={!!absenceErrors.endDate}
-                            required
-                        />
-                        <FormFeedback>{absenceErrors.endDate}</FormFeedback>
-                    </FormGroup>
-                    <FormGroup className={styles.field}>
-                        <Label>Reason</Label>
-                        <Input
-                            type="text"
-                            name="reason"
-                            value={absenceData.reason}
-                            onChange={handleAbsenceInputChange}
-                            disabled={loading.fetch || loading.submit}
-                            invalid={!!absenceErrors.reason}
-                            required
-                        />
-                        <FormFeedback>{absenceErrors.reason}</FormFeedback>
-                    </FormGroup>
-                </ModalBody>
-                <ModalFooter>
-                    <Button
-                        color="primary"
-                        onClick={handleAddAbsence}
-                        disabled={loading.submit || Object.values(absenceErrors).some(err => !!err)}
-                    >
-                        {loading.submit ? <FaSpinner className="fa-spin" /> : 'Enregistrer'}
-                    </Button>
-                    <Button color="secondary" onClick={() => setShowAbsenceModal(false)} disabled={loading.submit}>Annuler</Button>
-                </ModalFooter>
-            </Modal>
+                    <Card className="mt-4 shadow">
+                        <CardHeader className="border-0">
+                            <Row className="align-items-center">
+                                <Col>
+                                    <h3 className="mb-0">Your Team</h3>
+                                </Col>
+                            </Row>
+                        </CardHeader>
+                        <CardBody>
+                            {loading.fetch ? (
+                                <div className="text-center py-4">
+                                    <FaSpinner className="fa-spin" /> Loading...
+                                </div>
+                            ) : employees.length === 0 ? (
+                                <Alert color="info">
+                                    No employees found. Add your first team member above.
+                                </Alert>
+                            ) : (
+                                <Table className="align-items-center" responsive>
+                                    <thead className="thead-light">
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Position</th>
+                                            <th>Salary</th>
+                                            <th>Hire Date</th>
+                                            <th>Business</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {employees.map(employee => (
+                                            <tr key={employee._id}>
+                                                <td>{employee.firstName} {employee.lastName}</td>
+                                                <td>{employee.position}</td>
+                                                <td>{employee.salary} TND</td>
+                                                <td>{new Date(employee.hireDate).toLocaleDateString()}</td>
+                                                <td>{employee.businessId?.name || 'N/A'}</td>
+                                                <td>
+                                                    <Button
+                                                        color="info"
+                                                        size="sm"
+                                                        onClick={() => handleEditEmployee(employee)}
+                                                        className="mr-2"
+                                                    >
+                                                        <FaEdit />
+                                                    </Button>
+                                                    <Button
+                                                        color="danger"
+                                                        size="sm"
+                                                        onClick={() => handleDeleteEmployee(employee._id)}
+                                                    >
+                                                        <FaTrash />
+                                                    </Button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </Table>
+                            )}
+                        </CardBody>
+                    </Card>
+                </>
+            )}
         </div>
     );
 };

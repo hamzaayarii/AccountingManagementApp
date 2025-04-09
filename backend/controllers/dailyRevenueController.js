@@ -124,14 +124,33 @@ exports.create = async (req, res) => {
 // Get all daily revenue entries for a business
 exports.list = async (req, res) => {
     try {
-        const business = await Business.findOne({ owner: req.user._id });
-        if (!business) {
-            return res.status(404).json({ success: false, message: 'Business not found' });
+        const { business: businessId } = req.query;
+
+        if (!businessId) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Business ID is required' 
+            });
         }
 
-        const dailyRevenues = await DailyRevenue.find({ business: business._id })
-            .sort({ date: -1 })
-            .populate('journalEntry');
+        // Check if user is authorized for this business
+        const business = await Business.findOne({
+            _id: businessId,
+            $or: [
+                { owner: req.user._id },
+                { accountant: req.user._id }
+            ]
+        });
+
+        if (!business) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Business not found or unauthorized' 
+            });
+        }
+
+        const dailyRevenues = await DailyRevenue.find({ business: businessId })
+            .sort({ date: -1 });
 
         res.json({
             success: true,
@@ -258,7 +277,7 @@ exports.delete = async (req, res) => {
             await JournalEntry.findByIdAndDelete(dailyRevenue.journalEntry);
         }
 
-        await dailyRevenue.delete();
+        await DailyRevenue.deleteOne({ _id: dailyRevenue._id });
 
         res.json({
             success: true,

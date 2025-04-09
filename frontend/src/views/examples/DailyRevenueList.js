@@ -8,7 +8,11 @@ import {
     Col,
     Table,
     Button,
-    Badge
+    Badge,
+    Modal,
+    ModalHeader,
+    ModalBody,
+    ModalFooter
 } from 'reactstrap';
 import axios from 'axios';
 import Header from "components/Headers/Header.js";
@@ -17,6 +21,9 @@ const DailyRevenueList = () => {
     const [entries, setEntries] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [deleteModal, setDeleteModal] = useState(false);
+    const [selectedEntry, setSelectedEntry] = useState(null);
+    const [deleteError, setDeleteError] = useState(null);
 
     useEffect(() => {
         fetchEntries();
@@ -25,11 +32,25 @@ const DailyRevenueList = () => {
     const fetchEntries = async () => {
         try {
             const token = localStorage.getItem('authToken');
-            const response = await axios.get('http://localhost:5000/api/daily-revenue', {
+            
+            // First get the business for the current user (owner or accountant)
+            const businessResponse = await axios.get('http://localhost:5000/api/business/user-businesses', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (!businessResponse.data.businesses || businessResponse.data.businesses.length === 0) {
+                setError('No business found');
+                setIsLoading(false);
+                return;
+            }
+
+            const businessId = businessResponse.data.businesses[0]._id;
+            
+            // Then fetch daily revenue entries for that business
+            const response = await axios.get(`http://localhost:5000/api/daily-revenue?business=${businessId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             
-            // Initialize entries as an empty array if response.data.data is undefined
             setEntries(response.data.data || []);
             setIsLoading(false);
         } catch (err) {
@@ -109,6 +130,7 @@ const DailyRevenueList = () => {
                                             <th>Total Revenue</th>
                                             <th>Total Expenses</th>
                                             <th>Net Amount</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -140,6 +162,23 @@ const DailyRevenueList = () => {
                                                             {formatCurrency(netAmount)}
                                                         </Badge>
                                                     </td>
+                                                    <td className="text-right">
+                                                        {entry.status === 'DRAFT' && (
+                                                            <Button
+                                                                color="danger"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    setSelectedEntry(entry);
+                                                                    setDeleteModal(true);
+                                                                }}
+                                                            >
+                                                                <i className="fas fa-trash" /> Delete
+                                                            </Button>
+                                                        )}
+                                                        {entry.status !== 'DRAFT' && (
+                                                            <Badge color="info">{entry.status}</Badge>
+                                                        )}
+                                                    </td>
                                                 </tr>
                                             );
                                         })}
@@ -150,6 +189,59 @@ const DailyRevenueList = () => {
                     </div>
                 </Row>
             </Container>
+
+            {/* Delete Confirmation Modal */}
+            <Modal isOpen={deleteModal} toggle={() => setDeleteModal(false)}>
+                <ModalHeader toggle={() => setDeleteModal(false)}>
+                    Confirm Delete
+                </ModalHeader>
+                <ModalBody>
+                    {deleteError && (
+                        <div className="text-danger mb-3">{deleteError}</div>
+                    )}
+                    Are you sure you want to delete the daily revenue entry for{' '}
+                    {selectedEntry && formatDate(selectedEntry.date)}?
+                    This action cannot be undone.
+                </ModalBody>
+                <ModalFooter>
+                    <Button color="secondary" onClick={() => setDeleteModal(false)}>
+                        Cancel
+                    </Button>
+                    <Button
+                        color="danger"
+                        onClick={async () => {
+                            try {
+                                const token = localStorage.getItem('authToken');
+                                // First delete the journal entry if it exists
+                                if (selectedEntry.journalEntry) {
+                                    await axios.delete(
+                                        `http://localhost:5000/api/journal/${selectedEntry.journalEntry}`,
+                                        { headers: { Authorization: `Bearer ${token}` } }
+                                    );
+                                }
+                                
+                                // Then delete the daily revenue entry
+                                await axios.delete(
+                                    `http://localhost:5000/api/daily-revenue/${selectedEntry._id}`,
+                                    { headers: { Authorization: `Bearer ${token}` } }
+                                );
+                                setEntries(entries.filter(entry => entry._id !== selectedEntry._id));
+                                setDeleteModal(false);
+                                setSelectedEntry(null);
+                                setDeleteError(null);
+                            } catch (err) {
+                                console.error('Error deleting entry:', err);
+                                setDeleteError(
+                                    err.response?.data?.message ||
+                                    'Failed to delete entry. Only draft entries can be deleted.'
+                                );
+                            }
+                        }}
+                    >
+                        Delete
+                    </Button>
+                </ModalFooter>
+            </Modal>
         </>
     );
 };

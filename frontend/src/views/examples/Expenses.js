@@ -43,14 +43,16 @@ const Expenses = () => {
                 navigate('/auth/login');
                 return;
             }
-            const response = await axios.get("http://localhost:5000/api/business/buisnessowner",{
+            const response = await axios.get("http://localhost:5000/api/business/user-businesses", {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
             });
-            setBusinesses(response.data.businesses);
-            if (response.data.businesses.length > 0) {
+            setBusinesses(response.data.businesses || []);
+            if (response.data.businesses?.length > 0) {
                 setSelectedBusiness(response.data.businesses[0]._id);
+                // Fetch expenses for the first business
+                fetchExpenses(response.data.businesses[0]._id);
             }
         } catch (error) {
             console.error("Error fetching businesses", error);
@@ -129,22 +131,32 @@ const Expenses = () => {
     };
 
     return (
-        <Container className="mt-5">
-            <Row className="justify-content-center">
-                <Card className="shadow p-4">
+        <Container>
+            <Row>
+                <Card>
                     <h3>Manage Expenses</h3>
 
                     {/* Business Selector */}
-                    <FormGroup>
-                        <Label>Select Business</Label>
-                        <Input type="select" value={selectedBusiness} onChange={(e) => setSelectedBusiness(e.target.value)}>
-                            {businesses.map((biz) => (
-                                <option key={biz._id} value={biz._id}>{biz.name}</option>
+                    <div className="mb-3 p-3">
+                        <Label for="businessSelect">Select Business:</Label>
+                        <Input
+                            type="select"
+                            id="businessSelect"
+                            value={selectedBusiness}
+                            onChange={(e) => {
+                                setSelectedBusiness(e.target.value);
+                                fetchExpenses(e.target.value);
+                            }}
+                        >
+                            {businesses.map((business) => (
+                                <option key={business._id} value={business._id}>
+                                    {business.name}
+                                </option>
                             ))}
                         </Input>
-                    </FormGroup>
+                    </div>
 
-                    <Button color="primary" onClick={() => setShowForm(!showForm)}>
+                    <Button color="primary" onClick={() => setShowForm(!showForm)} className="mb-3 mx-3">
                         {showForm ? "Hide Form" : "Add Expense"}
                     </Button>
 

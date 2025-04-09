@@ -71,13 +71,12 @@ const AdminNavbar = (props) => {
       const token = localStorage.getItem("authToken");
       if (!token) return;
 
-      const response = await fetch("http://localhost:5000/api/business/buisnessowner", {
+      const response = await axios.get("http://localhost:5000/api/business/user-businesses", {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      const data = await response.json();
-      if (data.success) {
-        setBusiness(data.business);
+      if (response.data.businesses && response.data.businesses.length > 0) {
+        setBusiness(response.data.businesses[0]);
       }
     } catch (error) {
       console.error("Error fetching business:", error);

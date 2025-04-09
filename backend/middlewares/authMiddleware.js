@@ -26,7 +26,7 @@ const authenticate = (req, res, next) => {
 
 // Middleware to authorize accountants
 const authorizeAccountant = (req, res, next) => {
-    if (req.user.role !== 'accountant' && req.user.role !== 'admin') {
+    if (req.user.role !== 'ACCOUNTANT' && req.user.role !== 'ADMIN') {
         return res.status(403).json({ message: 'Access denied, accountant privileges required' });
     }
     next();

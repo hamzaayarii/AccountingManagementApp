@@ -21,6 +21,7 @@ const payrollRoutes = require('./routes/payrollsRoutes');
 const journalRoutes = require('./routes/journalRoutes');
 const dailyRevenueRoutes = require('./routes/dailyRevenueRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
+const financialStatementRoutes = require('./routes/FinancialStatementRoutes');
 const app = express();
 const initializeSocket = require('./middlewares/socketHandler');
 const server = http.createServer(app);
@@ -57,6 +58,7 @@ app.use('/api/business', businessRoutes); /// api/business/add
 app.use('/api/journal', journalRoutes);
 app.use('/api/daily-revenue', dailyRevenueRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/financial-statements', financialStatementRoutes);
 
 // Fetch user data by ID (API route)
 app.get('/api/users/:id', authenticate, async (req, res) => {

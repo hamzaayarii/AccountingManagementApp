@@ -9,67 +9,128 @@ const AssignAccountant = () => {
     const [removingId, setRemovingId] = useState(null); // For removing assignment
     const [currentUser, setCurrentUser] = useState(null);
     const [assignedId, setAssignedId] = useState(null);
+    const [userBusinesses, setUserBusinesses] = useState([]);
+    const [selectedBusiness, setSelectedBusiness] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     const token = localStorage.getItem("authToken");
 
     useEffect(() => {
         if (!token) return;
 
-        // Get current logged-in user
-        axios.get("http://localhost:5000/api/users/me", {
-            headers: { Authorization: `Bearer ${token}` }
-        })
-        .then(res => {
-            setCurrentUser(res.data);
-            setAssignedId(res.data.assignedTo); // Save assigned accountant ID
-        })
-        .catch(err => console.error("Error fetching user:", err));
+        const fetchData = async () => {
+            try {
+                setLoading(true);
+                setError(null);
 
-        // Get all accountants
-        axios.get("http://localhost:5000/api/users/getUsersByRole?role=accountant", {
-            headers: { Authorization: `Bearer ${token}` }
-        })
-        .then(res => setAccountants(res.data))
-        .catch(err => console.error("Error fetching accountants:", err));
+                // Get current logged-in user
+                const userRes = await axios.get("http://localhost:5000/api/users/me", {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                setCurrentUser(userRes.data);
+
+                // Get user's businesses
+                const businessRes = await axios.get("http://localhost:5000/api/business/user-businesses", {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                setUserBusinesses(businessRes.data.businesses || []);
+                
+                if (businessRes.data.businesses?.length > 0) {
+                    setSelectedBusiness(businessRes.data.businesses[0]);
+                    // If business has an accountant, set it
+                    if (businessRes.data.businesses[0].accountant) {
+                        setAssignedId(businessRes.data.businesses[0].accountant);
+                    }
+                }
+
+                // Get all accountants
+                const accountantsRes = await axios.get("http://localhost:5000/api/users/getUsersByRole?role=accountant", {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                setAccountants(accountantsRes.data);
+            } catch (err) {
+                console.error("Error fetching data:", err);
+                setError("Failed to load required data");
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
     }, [token]);
 
     // Handle the assignment of an accountant
     const handleAssign = (accountantId) => {
+        if (!selectedBusiness) {
+            alert("Please select a business first");
+            return;
+        }
+
         setAssigningId(accountantId);
 
-        axios.post("http://localhost:5000/api/users/assign", { accountantId }, {
-            headers: { Authorization: `Bearer ${token}` }
-        })
+        axios.post("http://localhost:5000/api/business/assign-accountant", 
+            { 
+                accountantId,
+                businessId: selectedBusiness._id
+            }, 
+            {
+                headers: { Authorization: `Bearer ${token}` }
+            }
+        )
         .then(() => {
             alert("Accountant assigned successfully!");
             setAssignedId(accountantId); // Update the assigned accountant
+            
+            // Update the selected business with the new accountant
+            setSelectedBusiness(prev => ({
+                ...prev,
+                accountant: accountantId
+            }));
         })
         .catch(error => {
             console.error("Error assigning accountant:", error);
-            alert("Failed to assign accountant.");
+            alert(error.response?.data?.message || "Failed to assign accountant.");
         })
         .finally(() => setAssigningId(null));
     };
 
     // Handle removing the assignment of an accountant
     const handleRemoveAssignment = () => {
+        if (!selectedBusiness) {
+            alert("Please select a business first");
+            return;
+        }
+
         if (!assignedId) {
-            alert("No accountant assigned to your business.");
+            alert("No accountant assigned to this business.");
             return;
         }
 
         setRemovingId(assignedId);
 
-        axios.post("http://localhost:5000/api/users/removeAssignment", { accountantId: assignedId }, {
-            headers: { Authorization: `Bearer ${token}` }
-        })
+        axios.post("http://localhost:5000/api/business/assign-accountant", 
+            { 
+                accountantId: null,
+                businessId: selectedBusiness._id 
+            }, 
+            {
+                headers: { Authorization: `Bearer ${token}` }
+            }
+        )
         .then(() => {
             alert("Accountant unassigned successfully!");
             setAssignedId(null); // Update the assigned accountant to null
+            
+            // Update the selected business to remove accountant
+            setSelectedBusiness(prev => ({
+                ...prev,
+                accountant: null
+            }));
         })
         .catch(error => {
             console.error("Error removing assignment:", error);
-            alert("Failed to remove accountant assignment.");
+            alert(error.response?.data?.message || "Failed to remove accountant assignment.");
         })
         .finally(() => setRemovingId(null));
     };
@@ -85,6 +146,26 @@ const AssignAccountant = () => {
                     <CardHeader>
                         <h3 className="mb-0">Assign an Accountant</h3>
                         <p className="text-sm text-muted">Select an accountant to assign to your business.</p>
+                        {userBusinesses.length > 0 && (
+                            <div className="mt-3">
+                                <label className="form-control-label">Select Business:</label>
+                                <select 
+                                    className="form-control" 
+                                    value={selectedBusiness?._id || ''}
+                                    onChange={(e) => {
+                                        const business = userBusinesses.find(b => b._id === e.target.value);
+                                        setSelectedBusiness(business);
+                                        setAssignedId(business?.accountant || null);
+                                    }}
+                                >
+                                    {userBusinesses.map(business => (
+                                        <option key={business._id} value={business._id}>
+                                            {business.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                     </CardHeader>
                     <CardBody>
                         {accountants.length === 0 ? (

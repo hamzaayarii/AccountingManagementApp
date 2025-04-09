@@ -46,22 +46,25 @@ const CreateInvoice = () => {
         const fetchBusinesses = async () => {
             try {
                 const token = localStorage.getItem('authToken');
-                console.log('FetchBusinesses - Token:', token); // Debug token
-                if (!token) throw new Error('You must be logged in to retrieve companies');
+                if (!token) throw new Error('You must be logged in to retrieve businesses');
 
-                const response = await axios.get('http://localhost:5000/api/business/buisnessowner', {
+                const response = await axios.get('http://localhost:5000/api/business/user-businesses', {
                     headers: { Authorization: `Bearer ${token}` },
                     timeout: 10000
                 });
 
-                console.log('FetchBusinesses - Response:', response.data); // Debug response
-                setBusinesses(response.data.businesses || []);
-                if (response.data.businesses.length > 0) {
-                    setValue('businessId', response.data.businesses[0]._id);
+                const businessList = response.data.businesses || [];
+                setBusinesses(businessList);
+                
+                if (businessList.length > 0) {
+                    setValue('businessId', businessList[0]._id);
+                    setSelectedBusiness(businessList[0]);
+                } else {
+                    setError('No businesses found. Please create a business first.');
                 }
             } catch (err) {
-                setError(err.response?.data?.message || 'Error retrieving companies');
-                console.error('FetchBusinesses - Error:', err.response?.data || err); // Debug error
+                setError(err.response?.data?.message || 'Error retrieving businesses');
+                console.error('Error fetching businesses:', err.response?.data || err);
             }
         };
 
@@ -517,23 +520,23 @@ const CreateInvoice = () => {
                                         <thead>
                                             <tr>
                                                 <th>Name</th>
-                                                <th>Unit</th>
                                                 <th>Price</th>
-                                                <th>Tax Rate</th>
-                                                <th>Action</th>
+                                                <th>Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {items.map((item) => (
                                                 <tr key={item._id}>
                                                     <td>{item.name}</td>
-                                                    <td>{item.unit}</td>
-                                                    <td>{item.salesInfo.sellingPrice}</td>
-                                                    <td>{item.salesInfo.tax}%</td>
+                                                    <td>${item.salesInfo.sellingPrice}</td>
                                                     <td>
                                                         <button
-                                                            onClick={() => handleItemSelect(item)}
+                                                            type="button"
                                                             className={styles.selectButton}
+                                                            onClick={() => {
+                                                                handleItemSelect(item);
+                                                                setItemModal(false);
+                                                            }}
                                                         >
                                                             Select
                                                         </button>
