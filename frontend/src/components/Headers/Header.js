@@ -1,6 +1,33 @@
+import React, { useState, useEffect } from 'react';
 import { Card, CardBody, CardTitle, Container, Row, Col } from "reactstrap";
+import axios from 'axios';
 
 const Header = () => {
+  // Define state for userCount
+  const [userCount, setUserCount] = useState(0);
+
+  // Fetch user count when the component mounts
+  useEffect(() => {
+    const fetchUserCount = async () => {
+      try {
+        const token = localStorage.getItem("authToken");
+        if (!token) return;
+
+        const response = await axios.get("http://localhost:5000/api/users/user-count", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (response.data && response.data.count !== undefined) {
+          setUserCount(response.data.count); // Set the fetched count
+        }
+      } catch (error) {
+        console.error("Error fetching user count:", error);
+      }
+    };
+
+    fetchUserCount();
+  }, []); // Empty dependency array means this runs only once when the component mounts
+
   return (
     <>
       <div className="header bg-gradient-info pb-8 pt-5 pt-md-8">
@@ -43,13 +70,10 @@ const Header = () => {
                   <CardBody>
                     <Row>
                       <div className="col">
-                        <CardTitle
-                          tag="h5"
-                          className="text-uppercase text-muted mb-0"
-                        >
-                          New users
+                        <CardTitle tag="h5" className="text-uppercase text-muted mb-0">
+                          Active Users
                         </CardTitle>
-                        <span className="h2 font-weight-bold mb-0">2,356</span>
+                        <span className="h2 font-weight-bold mb-0">{userCount}</span> {/* Display the fetched user count */}
                       </div>
                       <Col className="col-auto">
                         <div className="icon icon-shape bg-warning text-white rounded-circle shadow">

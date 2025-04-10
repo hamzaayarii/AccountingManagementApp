@@ -147,5 +147,13 @@ router.get('/search', authenticate, async (req, res) => {
   });
   router.get('/search', authenticate,search);
   router.post('/removeAssignment', authenticate, removeAssignment);
-
+  router.get('/user-count', authenticate, async (req, res) => {
+    try {
+      const userCount = await User.countDocuments(); // Count the number of users
+      res.json({ count: userCount });
+    } catch (err) {
+      console.error('Error fetching user count:', err);
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
 module.exports = router;
