@@ -3,6 +3,8 @@ import axios from 'axios';
 import { Alert, Spinner } from 'reactstrap';
 import styles from '../../assets/css/FinancialStatements.module.css';
 import { jwtDecode } from 'jwt-decode';
+import { useNavigate } from 'react-router-dom';
+import { Spinner as BootstrapSpinner } from 'react-bootstrap';
 
 const FinancialStatements = () => {
     const [statements, setStatements] = useState([]);
@@ -16,6 +18,10 @@ const FinancialStatements = () => {
         periodEnd: ''
     });
     const [userRole, setUserRole] = useState(null);
+    const [year, setYear] = useState('');
+    const [month, setMonth] = useState('');
+    const [years, setYears] = useState([]);
+    const [months, setMonths] = useState([]);
 
     useEffect(() => {
         const token = localStorage.getItem('authToken');
@@ -97,73 +103,78 @@ const FinancialStatements = () => {
         setError(''); // Clear any previous errors when user makes changes
     };
 
+    const handleGenerate = () => {
+        // Implementation of handleGenerate function
+    };
+
     return (
         <div className={styles.container}>
-            <h2>États Financiers</h2>
-            {error && <Alert color="danger">{error}</Alert>}
-
+            <h2>Financial Statements</h2>
             <div className={styles.form}>
                 <div className={styles.field}>
-                    <label>Société</label>
-                    {loadingBusinesses ? (
-                        <div className={styles.spinnerContainer}>
-                            <Spinner size="sm" />
-                        </div>
-                    ) : (
-                        <select 
-                            name="businessId" 
-                            onChange={handleInputChange} 
-                            value={formData.businessId}
-                            disabled={businesses.length === 0 || loading}
-                        >
-                            <option value="">Sélectionner une société</option>
-                            {businesses.map(business => (
-                                <option key={business._id} value={business._id}>{business.name}</option>
-                            ))}
-                        </select>
-                    )}
+                    <label htmlFor="year">Year</label>
+                    <select
+                        id="year"
+                        value={year}
+                        onChange={(e) => setYear(e.target.value)}
+                        disabled={loading}
+                    >
+                        <option value="">Select Year</option>
+                        {years.map((y) => (
+                            <option key={y} value={y}>
+                                {y}
+                            </option>
+                        ))}
+                    </select>
                 </div>
                 <div className={styles.field}>
-                    <label>Début de période</label>
-                    <input 
-                        type="date" 
-                        name="periodStart" 
-                        onChange={handleInputChange} 
-                        value={formData.periodStart}
-                        disabled={!formData.businessId || loading} 
-                    />
+                    <label htmlFor="month">Month</label>
+                    <select
+                        id="month"
+                        value={month}
+                        onChange={(e) => setMonth(e.target.value)}
+                        disabled={loading}
+                    >
+                        <option value="">Select Month</option>
+                        {months.map((m) => (
+                            <option key={m} value={m}>
+                                {m}
+                            </option>
+                        ))}
+                    </select>
                 </div>
-                <div className={styles.field}>
-                    <label>Fin de période</label>
-                    <input 
-                        type="date" 
-                        name="periodEnd" 
-                        onChange={handleInputChange} 
-                        value={formData.periodEnd}
-                        disabled={!formData.businessId || loading}
-                    />
-                </div>
-                <button 
-                    onClick={handleGenerateBalanceSheet} 
-                    disabled={loading || !formData.businessId || !formData.periodStart || !formData.periodEnd}
+                <button
+                    onClick={handleGenerate}
+                    disabled={loading || !year || !month}
                 >
-                    {loading ? 'Génération...' : 'Générer un bilan'}
+                    Generate Financial Statements
                 </button>
             </div>
 
-            <div className={styles.statements}>
-                {statements.map(statement => (
-                    <div key={statement._id} className={styles.statement}>
-                        <h3>Bilan ({new Date(statement.periodStart).toLocaleDateString()} - {new Date(statement.periodEnd).toLocaleDateString()})</h3>
-                        <p><strong>Actifs :</strong></p>
-                        <p>Créances clients : {statement.data.assets.receivables} TND</p>
-                        <p>Trésorerie : {statement.data.assets.cash} TND</p>
-                        <p><strong>Passifs :</strong></p>
-                        <p>Dettes fournisseurs : {statement.data.liabilities.payables} TND</p>
-                        <p><strong>Capitaux propres :</strong> {statement.data.equity} TND</p>
-                    </div>
-                ))}
-            </div>
+            {loading && (
+                <div className={styles.spinnerContainer}>
+                    <BootstrapSpinner animation="border" role="status">
+                        <span className="visually-hidden">Loading...</span>
+                    </BootstrapSpinner>
+                </div>
+            )}
+
+            {error && <p style={{ color: 'red' }}>{error}</p>}
+
+            {statements.length > 0 && (
+                <div className={styles.statements}>
+                    {statements.map((statement, index) => (
+                        <div key={index} className={styles.statement}>
+                            <h3>{statement.type}</h3>
+                            {Object.entries(statement.data).map(([key, value]) => (
+                                <p key={key}>
+                                    <strong>{key}:</strong> {value}
+                                </p>
+                            ))}
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };
