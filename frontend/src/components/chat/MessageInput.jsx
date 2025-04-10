@@ -8,9 +8,23 @@ const MessageInput = ({ sendMessage, handleTyping }) => {
   const handleSend = (e) => {
     e.preventDefault();
     if (!message.trim()) return;
-    
     sendMessage(message);
     setMessage('');
+  };
+
+  const handleImageClick = () => {
+    console.log('Image icon clicked');
+    // Implement image upload modal or action here
+  };
+
+  const handleAttachmentClick = () => {
+    console.log('Attachment icon clicked');
+    // Implement file attachment functionality here
+  };
+
+  const handleEmojiClick = () => {
+    console.log('Emoji icon clicked');
+    // Toggle emoji picker
   };
 
   return (
@@ -20,32 +34,35 @@ const MessageInput = ({ sendMessage, handleTyping }) => {
       style={{ 
         backgroundColor: '#FFFFFF', 
         padding: '8px 12px',
-        position: 'absolute',  // Position it absolutely
-        bottom: '0',           // At the bottom of the parent container
+        position: 'absolute',
+        bottom: '0',
         left: '0',
         right: '0',
-        zIndex: 10            // Ensure it stays on top
+        zIndex: 10
       }}
     >
       <div className="d-flex align-items-center mr-2">
         <button 
           type="button" 
-          className="btn btn-link p-1 text-secondary" 
-          style={{ border: 'none' }}
+          className="btn btn-link p-1" 
+          style={{ border: 'none', color: '#6c757d' }}
+          onClick={handleImageClick}
         >
           <Image size={18} />
         </button>
         <button 
           type="button" 
-          className="btn btn-link p-1 text-secondary" 
-          style={{ border: 'none' }}
+          className="btn btn-link p-1" 
+          style={{ border: 'none', color: '#6c757d' }}
+          onClick={handleAttachmentClick}
         >
           <Paperclip size={18} />
         </button>
         <button 
           type="button" 
-          className="btn btn-link p-1 text-secondary" 
-          style={{ border: 'none' }}
+          className="btn btn-link p-1" 
+          style={{ border: 'none', color: '#6c757d' }}
+          onClick={handleEmojiClick}
         >
           <Smile size={18} />
         </button>

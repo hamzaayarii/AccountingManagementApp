@@ -13,18 +13,15 @@ const MessageArea = ({
 }) => {
   const messagesEndRef = useRef(null);
 
-  // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Get date for showing day separators
   const formatDateHeader = (date) => {
     const options = { weekday: 'long' };
-    return date.toLocaleDateString('fr-FR', options).toUpperCase();
+    return date.toLocaleDateString('en-US', options).toUpperCase(); // <-- changed locale
   };
 
-  // Group messages by date
   const getMessageDate = (dateString) => {
     const date = new Date(dateString);
     return date.toDateString();
@@ -41,63 +38,84 @@ const MessageArea = ({
 
   return (
     <div className="conversation-container d-flex flex-column" style={{ height: '300px' }}>
-      <div className="d-flex align-items-center p-2 border-bottom" style={{ backgroundColor: '#FFFFFF' }}>
-        <button 
-          className="btn btn-sm btn-link text-dark p-0 mr-2"
-          onClick={handleChatBack}
-          style={{ border: 'none' }}
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <div className="position-relative mr-2">
-          {selectedContact.avatar ? (
-            <img 
-              src={selectedContact.avatar} 
-              alt="avatar" 
-              className="rounded-circle" 
-              style={{ width: '32px', height: '32px', objectFit: 'cover' }}
-            />
-          ) : (
-            <div
-              className="rounded-circle d-flex align-items-center justify-content-center"
-              style={{ 
-                width: '32px', 
-                height: '32px', 
-                backgroundColor: '#0073B1',
-                color: 'white',
-                fontSize: '14px',
-                fontWeight: 'bold'
-              }}
-            >
-              {(selectedContact.fullName?.charAt(0) || selectedContact.name?.charAt(0) || '?').toUpperCase()}
+      {/* Header */}
+      <div 
+        className="d-flex justify-content-between align-items-center p-2 border-bottom"
+        style={{ backgroundColor: '#FFFFFF' }}
+      >
+        {/* Left: Avatar + Name */}
+        <div className="d-flex align-items-center" style={{ gap: '12px' }}>
+          <div className="position-relative">
+            {selectedContact.avatar ? (
+              <img 
+                src={selectedContact.avatar} 
+                alt="avatar" 
+                className="rounded-circle" 
+                style={{ width: '48px', height: '48px', objectFit: 'cover' }}
+              />
+            ) : (
+              <div
+                className="rounded-circle d-flex align-items-center justify-content-center"
+                style={{ 
+                  width: '48px', 
+                  height: '48px', 
+                  backgroundColor: '#0073B1',
+                  color: 'white',
+                  fontSize: '18px',
+                  fontWeight: 'bold'
+                }}
+              >
+                {(selectedContact.fullName?.charAt(0) || selectedContact.name?.charAt(0) || '?').toUpperCase()}
+              </div>
+            )}
+            {selectedContact.isOnline && (
+              <div
+                style={{
+                  width: '10px',
+                  height: '10px',
+                  backgroundColor: '#057642',
+                  border: '2px solid white',
+                  borderRadius: '50%',
+                  position: 'absolute',
+                  bottom: '2px',
+                  right: '2px'
+                }}
+              />
+            )}
+          </div>
+
+          <div className="d-flex flex-column">
+            <div style={{ fontWeight: '600', fontSize: '16px' }}>
+              {selectedContact.fullName || selectedContact.name}
             </div>
-          )}
-          {/* Online status dot */}
-          {selectedContact.isOnline && (
-            <div
-              style={{
-                width: '10px',
-                height: '10px',
-                backgroundColor: '#057642',
-                border: '2px solid white',
-                borderRadius: '50%',
-                position: 'absolute',
-                bottom: '0',
-                right: '0'
-              }}
-            />
-          )}
-        </div>
-        <div>
-          <div style={{ fontWeight: '600', fontSize: '14px' }}>
-            {selectedContact.fullName || selectedContact.name}
-          </div>
-          <div style={{ fontSize: '12px', color: '#666666' }}>
-            {selectedContact.isOnline ? 'Disponible sur mobile' : 'Hors ligne'}
+            <div style={{ fontSize: '13px', color: '#666666' }}>
+              {selectedContact.isOnline ? 'Disponible sur mobile' : 'Hors ligne'}
+            </div>
           </div>
         </div>
+
+        {/* Right: Small Back Arrow */}
+        <button 
+          className="btn btn-sm btn-link text-dark p-0"
+          onClick={handleChatBack}
+          style={{ 
+            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '28px',
+            height: '28px',
+            borderRadius: '50%',
+            transition: 'background-color 0.2s ease'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0f0f0'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+        >
+          <ArrowLeft size={18} />
+        </button>
       </div>
 
+      {/* Messages */}
       <div 
         className="messages-container flex-grow-1 p-3" 
         style={{ 
@@ -108,10 +126,7 @@ const MessageArea = ({
       >
         {Object.entries(messagesByDate).map(([date, dateMessages]) => (
           <div key={date}>
-            <div 
-              className="text-center my-3" 
-              style={{ position: 'relative' }}
-            >
+            <div className="text-center my-3" style={{ position: 'relative' }}>
               <hr style={{ margin: '10px 0' }} />
               <span 
                 style={{ 
@@ -128,7 +143,7 @@ const MessageArea = ({
                 {formatDateHeader(new Date(date))}
               </span>
             </div>
-            
+
             {dateMessages.map((msg, index) => (
               <MessageBubble 
                 key={msg._id || index}
@@ -152,6 +167,7 @@ const MessageArea = ({
           />
         )}
 
+        {/* Scroll anchor */}
         <div ref={messagesEndRef} />
       </div>
     </div>

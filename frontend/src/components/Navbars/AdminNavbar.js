@@ -5,29 +5,28 @@ import {
   DropdownItem,
   UncontrolledDropdown,
   DropdownToggle,
-  Form,
-  FormGroup,
-  InputGroupAddon,
-  InputGroupText,
-  Input,
-  InputGroup,
-  Navbar,
-  Nav,
   Container,
   Media,
   Button,
+  Badge,
+  Nav,
+  Navbar
 } from "reactstrap";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import {jwtDecode} from 'jwt-decode';
+import { jwtDecode } from 'jwt-decode';
+import { io } from "socket.io-client";
 
 const AdminNavbar = (props) => {
   const navigate = useNavigate();
   const [business, setBusiness] = useState(null);
   const [showBusinessDropdown, setShowBusinessDropdown] = useState(false);
   const [user, setUser] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const notificationSound = useRef(new Audio("/notification-sound.mp3")); // Add sound file to your public folder
+  const socketRef = useRef(null);
 
-  // Fetch user data from the backend
   useEffect(() => {
     const fetchUserData = async () => {
       try {
@@ -52,7 +51,64 @@ const AdminNavbar = (props) => {
     fetchUserData();
   }, []);
 
-  // Fetch business data - update this according to your API structure
+   // Fetch notifications on initial render
+   useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const token = localStorage.getItem("authToken");
+        if (!token) return;
+
+        const response = await axios.get("http://localhost:5000/api/notifications", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        setNotifications(response.data);
+        setUnreadCount(response.data.length);
+      } catch (error) {
+        console.error("Error fetching notifications:", error);
+      }
+    };
+
+    fetchNotifications();
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem("authToken");
+    if (!token) return;
+
+    const socket = io("http://localhost:5000", { auth: { token } });
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      console.log("Socket connected");
+    });
+
+    // Listen for new notifications
+    socket.on("receive_notification", (notification) => {
+      console.log("Received notification:", notification);
+      setNotifications(prev => [notification, ...prev]);
+      setUnreadCount(prevCount => prevCount + 1);
+
+      // Play sound when new notification arrives
+      try {
+        notificationSound.current.play().catch(error => {
+          console.log("Audio playback failed:", error);
+        });
+      } catch (error) {
+        console.error("Error playing notification sound:", error);
+      }
+    });
+
+    socket.on("connect_error", (error) => {
+      console.error("Socket connection error:", error);
+    });
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
+  }, []);
   useEffect(() => {
     // Example: If your user data already contains business info
     if (props.userData && props.userData.business) {
@@ -62,8 +118,6 @@ const AdminNavbar = (props) => {
       fetchUserBusiness();
     }
   }, [props.userData]);
-
-
 
   // Function to fetch user's business data
   const fetchUserBusiness = async () => {
@@ -82,16 +136,20 @@ const AdminNavbar = (props) => {
       console.error("Error fetching business:", error);
     }
   };
+
   const handleLogout = (e) => {
     e.preventDefault();
     // Clear user session or authentication token here
-    // For example, if you are using localStorage:
     localStorage.removeItem("authToken");
+    
+    // Disconnect socket before logout
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+    }
 
     // Redirect to login page and replace the current history entry
     navigate("/auth/login", { replace: true });
   };
-
 
   const toggleBusinessDropdown = () => {
     setShowBusinessDropdown(!showBusinessDropdown);
@@ -107,6 +165,75 @@ const AdminNavbar = (props) => {
     setShowBusinessDropdown(false);
   };
 
+  const handleNotificationClick = async (notification) => {
+    try {
+      const token = localStorage.getItem("authToken");
+      if (!token) {
+        navigate("/auth/login", { replace: true });
+        return;
+      }
+
+      // Mark notification as read
+      await axios.put(`http://localhost:5000/api/notifications/${notification._id}/read`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Inform server that the notification was read (Socket)
+      if (socketRef.current) {
+        socketRef.current.emit('mark_notification_read', notification._id);
+      }
+
+      // Remove the read notification from the list
+      setNotifications(prev => prev.filter(n => n._id !== notification._id));
+      setUnreadCount(prevCount => Math.max(0, prevCount - 1));
+
+      // Navigate to the conversation if available
+      if (notification.conversationId) {
+        navigate(`/admin/messages/${notification.conversationId}`);
+      }
+    } catch (error) {
+      console.error("Error handling notification click:", error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      const token = localStorage.getItem("authToken");
+      await axios.put("http://localhost:5000/api/notifications/read-all", {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Emit event to inform server all notifications are read
+      if (socketRef.current) {
+        socketRef.current.emit('mark_all_notifications_read');
+      }
+
+      setNotifications([]);
+      setUnreadCount(0);
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+    }
+  };
+
+  // Format the timestamp for notifications
+  const formatTimeAgo = (timestamp) => {
+    const now = new Date();
+    const date = new Date(timestamp);
+    const seconds = Math.floor((now - date) / 1000);
+    
+    if (seconds < 60) return 'just now';
+    
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    
+    return date.toLocaleDateString();
+  };
 
   return (
     <>
@@ -119,8 +246,6 @@ const AdminNavbar = (props) => {
             {props.brandText}
           </Link>
           <Nav className="align-items-center d-none d-md-flex" navbar>
-
-
             {/* Business Selector */}
             <div className="business-selector mr-4 position-relative">
               <Button
@@ -161,7 +286,87 @@ const AdminNavbar = (props) => {
               )}
             </div>
 
-
+            {/* Notifications */}
+            <UncontrolledDropdown nav className="mr-3">
+              <DropdownToggle nav className="position-relative">
+                <i className="ni ni-bell-55 text-white" style={{ fontSize: '18px' }}></i>
+                {unreadCount > 0 && (
+                  <Badge
+                    color="danger"
+                    pill
+                    className="position-absolute"
+                    style={{
+                      top: '-5px',
+                      right: '-5px',
+                      fontSize: '10px',
+                      padding: '2px 5px'
+                    }}
+                  >
+                    {unreadCount}
+                  </Badge>
+                )}
+              </DropdownToggle>
+              <DropdownMenu right className="notification-dropdown" style={{ 
+                  maxHeight: '400px', 
+                  overflowY: 'auto', 
+                  width: '320px',
+                  padding: 0
+              }}>
+                <div className="d-flex justify-content-between align-items-center p-3 border-bottom">
+                  <h6 className="m-0">Notifications</h6>
+                  {unreadCount > 0 && (
+                    <Button
+                      color="link"
+                      size="sm"
+                      className="p-0 text-muted"
+                      onClick={markAllAsRead}
+                    >
+                      Mark all as read
+                    </Button>
+                  )}
+                </div>
+                
+                {notifications.length === 0 ? (
+                  <div className="text-center p-4 text-muted">
+                    <i className="ni ni-bell-55 d-block mb-2" style={{ fontSize: '24px' }}></i>
+                    <p className="m-0">No new notifications</p>
+                  </div>
+                ) : (
+                  <div>
+                    {notifications.map((notification, index) => (
+                      <div 
+                        key={notification._id || index}
+                        className="notification-item p-3 border-bottom cursor-pointer hover-bg-light"
+                        onClick={() => handleNotificationClick(notification)}
+                      >
+                        <div className="d-flex align-items-start">
+                          <div className="notification-avatar mr-3">
+                            <div className="avatar rounded-circle bg-info text-white d-flex align-items-center justify-content-center"
+                              style={{ width: '40px', height: '40px' }}>
+                              <i className="ni ni-chat-round"></i>
+                            </div>
+                          </div>
+                          <div className="notification-content flex-grow-1">
+                            <div className="d-flex justify-content-between">
+                              <p className="font-weight-bold mb-0">{notification.senderName}</p>
+                              <small className="text-muted">
+                                {formatTimeAgo(notification.createdAt)}
+                              </small>
+                            </div>
+                            <p className="text-sm mb-0 text-truncate">{notification.text}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="text-center p-2 border-top">
+                  <Link to="/admin/messages" className="text-primary">
+                    View all messages
+                  </Link>
+                </div>
+              </DropdownMenu>
+            </UncontrolledDropdown>
 
             {/* User Profile Dropdown */}
             <UncontrolledDropdown nav>
@@ -175,6 +380,7 @@ const AdminNavbar = (props) => {
                   </span>
                   <Media className="ml-2 d-none d-lg-block">
                     <span className="mb-0 text-sm font-weight-bold">
+                      {user?.name || "User"}
                     </span>
                   </Media>
                 </Media>

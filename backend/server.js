@@ -28,7 +28,7 @@ const server = http.createServer(app);
 const io = initializeSocket(server);
 
 const chatRoutes= require('./routes/chatRoutes.js');
-
+const notifRoutes = require('./routes/notificationRoutes.js');
 // MongoDB connection
 mongoose.connect(dbConfig.mongodb.url, { useNewUrlParser: true, useUnifiedTopology: true })
     .then(() => console.log('Connected to MongoDB'))
@@ -81,6 +81,7 @@ app.use((req, res, next) => {
   });
   
 app.use('/api/chat', chatRoutes);
+app.use('/api/notifications', notifRoutes);
 
 // Base route
 app.get('/', (req, res) => {
